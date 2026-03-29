@@ -317,8 +317,9 @@ jobs:
       - name: 创建发布
         uses: softprops/action-gh-release@v2
         with:
-          files: artifacts/*.apk
-          files: artifacts/*.aab
+          files: |
+            artifacts/*.apk
+            artifacts/*.aab
           draft: false
           prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') }}
         env:
