@@ -1,0 +1,335 @@
+# Mandarine Android CI/CD 配置
+# GitHub Actions 工作流文件
+
+name: Android CI/CD
+
+on:
+  push:
+    branches:
+      - master
+      - main
+      - develop
+    tags:
+      - 'v*'
+  pull_request:
+    branches:
+      - master
+      - main
+      - develop
+  workflow_dispatch:
+
+env:
+  # Android SDK 配置
+  ANDROID_COMPILE_SDK: 35
+  ANDROID_BUILD_TOOLS: 35.0.0
+  ANDROID_NDK_VERSION: 27.0.12077973
+
+  # Gradle 配置
+  GRADLE_OPTS: -Xmx8192m -Dorg.gradle.jvmargs="-Xmx8192m" -Dorg.gradle.daemon=false
+
+  # NDK CCache 配置
+  NDK_CCACHE: ${{ github.workspace }}/ccache
+
+jobs:
+  # 代码检查任务
+  code-check:
+    name: 代码检查
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: 设置JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - name: 运行代码格式检查
+        run: |
+          cd src/android
+          chmod +x ./gradlew
+          ./gradlew ktlintCheck --no-daemon || true
+
+      - name: 运行Lint检查
+        run: |
+          cd src/android
+          chmod +x ./gradlew
+          ./gradlew lint --no-daemon || true
+
+  # Debug构建任务
+  build-debug:
+    name: 构建Debug版本
+    runs-on: ubuntu-latest
+    needs: code-check
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: 设置JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - name: 设置Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: 配置NDK
+        run: |
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/${{ env.ANDROID_NDK_VERSION }}" >> $GITHUB_ENV
+          echo "ANDROID_NDK_ROOT=$ANDROID_HOME/ndk/${{ env.ANDROID_NDK_VERSION }}" >> $GITHUB_ENV
+
+      - name: 配置CCache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.NDK_CCACHE }}
+          key: ndk-ccache-${{ runner.os }}-${{ hashFiles('**/CMakeLists.txt') }}
+          restore-keys: |
+            ndk-ccache-${{ runner.os }}-
+
+      - name: 准备CCache
+        run: |
+          mkdir -p ${{ env.NDK_CCACHE }}
+          ccache -M 1G || true
+          ccache -z || true
+
+      - name: 构建Debug APK
+        run: |
+          cd src/android
+          chmod +x ./gradlew
+          ./gradlew assembleDebug --no-daemon --stacktrace
+
+      - name: 上传Debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-apk
+          path: src/android/app/build/outputs/apk/debug/*.apk
+          retention-days: 14
+
+      - name: 显示CCache统计
+        run: ccache -s || true
+
+  # Release构建任务
+  build-release:
+    name: 构建Release版本
+    runs-on: ubuntu-latest
+    needs: code-check
+    if: github.event_name == 'push' && (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main')
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: 设置JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - name: 设置Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: 配置NDK
+        run: |
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/${{ env.ANDROID_NDK_VERSION }}" >> $GITHUB_ENV
+          echo "ANDROID_NDK_ROOT=$ANDROID_HOME/ndk/${{ env.ANDROID_NDK_VERSION }}" >> $GITHUB_ENV
+
+      - name: 解码签名密钥
+        if: env.ANDROID_SIGNING_KEY != ''
+        run: |
+          echo "$ANDROID_SIGNING_KEY" | base64 -d > ${{ github.workspace }}/keystore.jks
+
+      - name: 配置签名环境变量
+        if: env.ANDROID_SIGNING_KEY != ''
+        run: |
+          echo "ANDROID_KEYSTORE_FILE=${{ github.workspace }}/keystore.jks" >> $GITHUB_ENV
+          echo "ANDROID_KEYSTORE_PASS=${{ secrets.ANDROID_KEYSTORE_PASS }}" >> $GITHUB_ENV
+          echo "ANDROID_KEY_ALIAS=${{ secrets.ANDROID_KEY_ALIAS }}" >> $GITHUB_ENV
+
+      - name: 配置CCache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.NDK_CCACHE }}
+          key: ndk-ccache-${{ runner.os }}-${{ hashFiles('**/CMakeLists.txt') }}
+          restore-keys: |
+            ndk-ccache-${{ runner.os }}-
+
+      - name: 准备CCache
+        run: |
+          mkdir -p ${{ env.NDK_CCACHE }}
+          ccache -M 2G || true
+          ccache -z || true
+
+      - name: 构建Release APK
+        run: |
+          cd src/android
+          chmod +x ./gradlew
+          ./gradlew assembleRelease --no-daemon --stacktrace
+
+      - name: 构建App Bundle
+        run: |
+          cd src/android
+          chmod +x ./gradlew
+          ./gradlew bundleRelease --no-daemon --stacktrace
+
+      - name: 上传Release APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-apk
+          path: src/android/app/build/outputs/apk/release/*.apk
+          retention-days: 30
+
+      - name: 上传App Bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-bundle
+          path: src/android/app/build/outputs/bundle/release/*.aab
+          retention-days: 30
+
+      - name: 显示CCache统计
+        run: ccache -s || true
+
+  # RelWithDebInfo构建任务（推荐用于发布测试）
+  build-relwithdebinfo:
+    name: 构建RelWithDebInfo版本
+    runs-on: ubuntu-latest
+    needs: code-check
+    if: github.event_name == 'workflow_dispatch'
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: 设置JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - name: 设置Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: 配置NDK
+        run: |
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/${{ env.ANDROID_NDK_VERSION }}" >> $GITHUB_ENV
+          echo "ANDROID_NDK_ROOT=$ANDROID_HOME/ndk/${{ env.ANDROID_NDK_VERSION }}" >> $GITHUB_ENV
+
+      - name: 配置CCache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.NDK_CCACHE }}
+          key: ndk-ccache-${{ runner.os }}-${{ hashFiles('**/CMakeLists.txt') }}
+          restore-keys: |
+            ndk-ccache-${{ runner.os }}-
+
+      - name: 准备CCache
+        run: |
+          mkdir -p ${{ env.NDK_CCACHE }}
+          ccache -M 2G || true
+          ccache -z || true
+
+      - name: 构建RelWithDebInfo APK
+        run: |
+          cd src/android
+          chmod +x ./gradlew
+          ./gradlew assembleRelWithDebInfo --no-daemon --stacktrace
+
+      - name: 上传APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: relwithdebinfo-apk
+          path: src/android/app/build/outputs/apk/relWithDebInfo/*.apk
+          retention-days: 30
+
+      - name: 显示CCache统计
+        run: ccache -s || true
+
+  # 测试任务
+  run-tests:
+    name: 运行单元测试
+    runs-on: ubuntu-latest
+    needs: code-check
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: 设置JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - name: 设置Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: 运行测试
+        run: |
+          cd src/android
+          chmod +x ./gradlew
+          ./gradlew test --no-daemon
+
+      - name: 上传测试报告
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-reports
+          path: src/android/app/build/reports/tests/testDebugUnitTest/
+          retention-days: 14
+
+  # 发布到GitHub Releases
+  github-release:
+    name: 发布到GitHub
+    runs-on: ubuntu-latest
+    needs: build-release
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: 下载APK
+        uses: actions/download-artifact@v4
+        with:
+          name: release-apk
+          path: artifacts/
+
+      - name: 下载Bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: release-bundle
+          path: artifacts/
+
+      - name: 创建发布
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*.apk
+          files: artifacts/*.aab
+          draft: false
+          prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # 构建完成通知
+  notify-success:
+    name: 通知构建成功
+    runs-on: ubuntu-latest
+    needs: [build-debug, build-release]
+    if: always() && needs.build-debug.result == 'success'
+    steps:
+      - name: 打印构建成功消息
+        run: echo "Android构建已成功完成！"
