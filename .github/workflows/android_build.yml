@@ -27,8 +27,8 @@ env:
   # Gradle 配置
   GRADLE_OPTS: -Xmx8192m -Dorg.gradle.jvmargs="-Xmx8192m" -Dorg.gradle.daemon=false
 
-  # NDK CCache 配置
-  NDK_CCACHE: ${{ github.workspace }}/ccache
+  # NDK CCache 缓存目录配置
+  NDK_CCACHE_DIR: ${{ github.workspace }}/ccache_cache
 
 jobs:
   # 代码检查任务
@@ -86,19 +86,22 @@ jobs:
           echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/${{ env.ANDROID_NDK_VERSION }}" >> $GITHUB_ENV
           echo "ANDROID_NDK_ROOT=$ANDROID_HOME/ndk/${{ env.ANDROID_NDK_VERSION }}" >> $GITHUB_ENV
 
-      - name: 配置CCache
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.NDK_CCACHE }}
-          key: ndk-ccache-${{ runner.os }}-${{ hashFiles('**/CMakeLists.txt') }}
-          restore-keys: |
-            ndk-ccache-${{ runner.os }}-
-
-      - name: 准备CCache
+      - name: 安装CCache
         run: |
-          mkdir -p ${{ env.NDK_CCACHE }}
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ccache
+          echo "NDK_CCACHE=/usr/bin/ccache" >> $GITHUB_ENV
           ccache -M 1G || true
           ccache -z || true
+
+      - name: 配置CCache缓存
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.NDK_CCACHE_DIR }}
+          key: ndk-ccache-${{ runner.os }}-v1-${{ hashFiles('**/CMakeLists.txt') }}
+          restore-keys: |
+            ndk-ccache-${{ runner.os }}-v1-
+            ndk-ccache-${{ runner.os }}-
 
       - name: 构建Debug APK
         run: |
@@ -155,19 +158,22 @@ jobs:
           echo "ANDROID_KEYSTORE_PASS=${{ secrets.ANDROID_KEYSTORE_PASS }}" >> $GITHUB_ENV
           echo "ANDROID_KEY_ALIAS=${{ secrets.ANDROID_KEY_ALIAS }}" >> $GITHUB_ENV
 
-      - name: 配置CCache
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.NDK_CCACHE }}
-          key: ndk-ccache-${{ runner.os }}-${{ hashFiles('**/CMakeLists.txt') }}
-          restore-keys: |
-            ndk-ccache-${{ runner.os }}-
-
-      - name: 准备CCache
+      - name: 安装CCache
         run: |
-          mkdir -p ${{ env.NDK_CCACHE }}
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ccache
+          echo "NDK_CCACHE=/usr/bin/ccache" >> $GITHUB_ENV
           ccache -M 2G || true
           ccache -z || true
+
+      - name: 配置CCache缓存
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.NDK_CCACHE_DIR }}
+          key: ndk-ccache-${{ runner.os }}-v1-${{ hashFiles('**/CMakeLists.txt') }}
+          restore-keys: |
+            ndk-ccache-${{ runner.os }}-v1-
+            ndk-ccache-${{ runner.os }}-
 
       - name: 构建Release APK
         run: |
@@ -225,19 +231,22 @@ jobs:
           echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/${{ env.ANDROID_NDK_VERSION }}" >> $GITHUB_ENV
           echo "ANDROID_NDK_ROOT=$ANDROID_HOME/ndk/${{ env.ANDROID_NDK_VERSION }}" >> $GITHUB_ENV
 
-      - name: 配置CCache
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.NDK_CCACHE }}
-          key: ndk-ccache-${{ runner.os }}-${{ hashFiles('**/CMakeLists.txt') }}
-          restore-keys: |
-            ndk-ccache-${{ runner.os }}-
-
-      - name: 准备CCache
+      - name: 安装CCache
         run: |
-          mkdir -p ${{ env.NDK_CCACHE }}
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ccache
+          echo "NDK_CCACHE=/usr/bin/ccache" >> $GITHUB_ENV
           ccache -M 2G || true
           ccache -z || true
+
+      - name: 配置CCache缓存
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.NDK_CCACHE_DIR }}
+          key: ndk-ccache-${{ runner.os }}-v1-${{ hashFiles('**/CMakeLists.txt') }}
+          restore-keys: |
+            ndk-ccache-${{ runner.os }}-v1-
+            ndk-ccache-${{ runner.os }}-
 
       - name: 构建RelWithDebInfo APK
         run: |
