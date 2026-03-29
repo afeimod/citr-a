@@ -1,0 +1,50 @@
+# Mandarine Android 本地配置文件
+# 请复制此文件为 local.properties 并修改相应的路径
+
+# ========== Android SDK配置 ==========
+
+# Android SDK根目录（必须配置）
+sdk.dir=/home/user/Android/Sdk
+
+# Android NDK根目录（必须配置）
+ndk.dir=/home/user/Android/Sdk/ndk/27.0.12077973
+
+# ========== CMake配置（可选）==========
+
+# CMake可执行文件目录（如果需要自定义CMake）
+# cmake.dir=/usr/local/bin
+
+# ========== 构建工具配置 ==========
+
+# Android Build Tools版本
+# build.tools.version=35.0.0
+
+# ========== 高级配置 ==========
+
+# Gradle缓存目录（可选）
+# gradle.user.home=/home/user/.gradle
+
+# CCache目录（可选，用于加速构建）
+# ccache.dir=/home/user/.ccache
+
+# ========== 配置说明 ==========
+
+# 1. Windows用户示例：
+#    sdk.dir=C\:\\Users\\username\\AppData\\Local\\Android\\Sdk
+#    ndk.dir=C\:\\Users\\username\\AppData\\Local\\Android\\Sdk\\ndk\\27.0.12077973
+
+# 2. macOS用户示例：
+#    sdk.dir=/Users/username/Library/Android/sdk
+#    ndk.dir=/Users/username/Library/Android/sdk/ndk/27.0.12077973
+
+# 3. Linux用户示例：
+#    sdk.dir=/home/username/Android/Sdk
+#    ndk.dir=/home/username/Android/Sdk/ndk/27.0.12077973
+
+# ========== 验证配置 ==========
+
+# 运行以下命令验证配置：
+# cd src/android
+# ./gradlew tasks --configuration asPath
+
+# 如果看到错误，请检查路径是否正确
