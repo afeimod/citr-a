@@ -72,8 +72,17 @@ public final class MainActivity extends AppCompatActivity implements MainView {
         }
         PicassoUtils.init();
 
-        // Setup billing manager, so we can globally query for Premium status
-        mBillingManager = new BillingManager(this);
+        // Setup billing manager, so we can globally query for Premium status.
+        // 用 try-catch 守住:Billing 7.x 的 API 有变更,设备兼容性也参差,
+        // 就算 BillingClient 初始化坏了也不能让 app 起不来。崩了把异常塞到 logcat,
+        // 后面 mBillingManager == null 走 fallback 分支。
+        try {
+            mBillingManager = new BillingManager(this);
+        } catch (Throwable t) {
+            android.util.Log.e("CitraMain",
+                    "BillingManager init failed: " + t.getClass().getName() + ": " + t.getMessage(), t);
+            mBillingManager = null;
+        }
 
         // Dismiss previous notifications (should not happen unless a crash occurred)
         EmulationActivity.tryDismissRunningNotification(this);
