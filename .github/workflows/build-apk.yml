@@ -1,0 +1,137 @@
+name: Build Android APK
+
+on:
+  workflow_dispatch:
+    # 分支选择直接用 GitHub UI 顶部自带的"Run workflow from"下拉,这里不再重复
+    inputs:
+      build_type:
+        description: "构建类型"
+        required: true
+        default: "debug"
+        type: choice
+        options:
+          - debug
+          - release
+      ndk_version:
+        description: "NDK 版本(留空使用 build.gradle 声明的版本)"
+        required: false
+        default: ""
+        type: string
+
+# -----------------------------------------------------------------------------
+# 权限:actions 默认 token 够用,只有要推回仓库时才需要更高权限
+# -----------------------------------------------------------------------------
+permissions:
+  contents: read
+
+# -----------------------------------------------------------------------------
+# 一次构建里只跑最新的那一次,避免重复排队
+# -----------------------------------------------------------------------------
+concurrency:
+  group: build-apk-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-apk:
+    name: Build ${{ inputs.build_type }} APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      # ---------------------------------------------------------------
+      # 1. 拉取用户在 GitHub UI 顶部选中的 branch/tag 源码
+      # ---------------------------------------------------------------
+      - name: Checkout source (${{ github.ref_name }})
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+          fetch-depth: 1
+          submodules: recursive
+          lfs: true
+
+      # ---------------------------------------------------------------
+      # 2. 设置 JDK 17(AGP 8.x 需要;AGP 7.x 用 11 也行)
+      # ---------------------------------------------------------------
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: gradle
+
+      # ---------------------------------------------------------------
+      # 3. 配置 Android SDK + NDK
+      #    inputs.ndk_version 为空时,沿用 build.gradle 里声明的版本
+      # ---------------------------------------------------------------
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          # 接受所有 licenses
+          accept-sdk-licenses: true
+          # NDK 版本,空字符串表示让 Gradle 自己挑
+          ndk-version: ${{ inputs.ndk_version || '' }}
+          # 默认安装的 build-tools / platforms,可按需增减
+          build-tools: "34.0.0"
+          packages: |
+            platform-tools
+            platforms;android-34
+
+      # ---------------------------------------------------------------
+      # 4. 给 gradlew 执行权限(Windows 上传时常丢 +x)
+      # ---------------------------------------------------------------
+      - name: Make gradlew executable
+        run: chmod +x src/android/gradlew
+
+      # ---------------------------------------------------------------
+      # 5. 跑构建
+      #    debug   -> assembleDebug
+      #    release -> assembleRelease
+      #    首字母大写:
+      #       ${{ inputs.build_type }}  -> assembleDebug
+      #    偷个懒用 bash 参数展开
+      # ---------------------------------------------------------------
+      - name: Build APK
+        working-directory: src/android
+        env:
+          GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.workers.max=2 -Xmx2g"
+        run: |
+          set -eux
+          VARIANT="$(tr '[:lower:]' '[:upper:]' <<< '${inputs.build_type}')"
+          echo "==> Building assemble${VARIANT} on ref ${GITHUB_REF_NAME} (commit ${GITHUB_SHA::8})"
+          echo "    (selected from GitHub UI 'Run workflow from' branch picker)"
+          ./gradlew "assemble${VARIANT}" --no-daemon --stacktrace
+
+      # ---------------------------------------------------------------
+      # 6. 收集 APK 作为可下载 artifact(默认 90 天)
+      # ---------------------------------------------------------------
+      - name: Collect APK artifacts
+        if: always()
+        run: |
+          mkdir -p apk-output
+          # 把所有变体的 APK 都收集起来,方便对比
+          find src/android/app/build/outputs/apk -name "*.apk" -exec cp -v {} apk-output/ \; 2>/dev/null || true
+          echo "---- APK 列表 ----"
+          ls -lh apk-output/ || true
+
+      - name: Upload APK
+        if: success() || failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-${{ inputs.build_type }}-${{ github.ref_name }}-${{ github.sha }}
+          path: apk-output/*.apk
+          if-no-files-found: warn
+          retention-days: 30
+
+      # ---------------------------------------------------------------
+      # 7. 构建失败时,顺手把 build 日志一起打包,方便排查
+      # ---------------------------------------------------------------
+      - name: Upload Gradle logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gradle-logs-${{ github.run_id }}
+          path: |
+            src/android/app/build/outputs/logs/
+            ~/.gradle/daemon/**/*.log
+          if-no-files-found: ignore
+          retention-days: 7
