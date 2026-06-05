@@ -61,13 +61,16 @@ jobs:
           fetch-depth: 1
 
       # ---------------------------------------------------------------
-      # 2. 设置 JDK 17(AGP 8.x 需要)
+      # 2. 设置 JDK 11
+      #    项目用的是 Gradle 5.6.4 + AGP 3.6.1(都是 2020 年),
+      #    只支持 Java 8/11/12/13,跑 JDK 17 会 NoClassDefFoundError。
+      #    如果以后升级 Gradle/AGP 到 7.x+,这里改成 17
       # ---------------------------------------------------------------
-      - name: Set up JDK 17
+      - name: Set up JDK 11
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: 17
+          java-version: 11
           cache: gradle
 
       # ---------------------------------------------------------------
@@ -97,14 +100,18 @@ jobs:
       # 5. 跑构建
       #    debug   -> assembleDebug
       #    release -> assembleRelease
+      #    注意:${{ inputs.build_type }} 是 GitHub Actions 模板语法
+      #    必须在 env 块里赋给一个 shell 变量,再让 bash 引用。
+      #    直接在 bash 字符串里写 ${{ }} 会出现解析问题
       # ---------------------------------------------------------------
       - name: Build APK
         working-directory: src/android
         env:
           GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.workers.max=2 -Xmx2g"
+          BUILD_TYPE: ${{ inputs.build_type }}
         run: |
           set -eux
-          VARIANT="$(tr '[:lower:]' '[:upper:]' <<< '${inputs.build_type}')"
+          VARIANT="$(tr '[:lower:]' '[:upper:]' <<< "${BUILD_TYPE}")"
           echo "==> Building assemble${VARIANT} on ref ${GITHUB_REF_NAME} (commit ${GITHUB_SHA::8})"
           echo "    (branch selected from GitHub UI 'Run workflow from' picker)"
           ./gradlew "assemble${VARIANT}" --no-daemon --stacktrace
