@@ -6,35 +6,34 @@ apply plugin: 'com.android.application'
  * next 680 years.
  */
 def autoVersion = (int) (((new Date().getTime() / 1000) - 1451606400) / 10)
-def buildType
 def abiFilter = "arm64-v8a" //, "x86"
 
 android {
-    compileSdkVersion 29
+    namespace "org.citra.citra_emu"
+    compileSdk 35
+    ndkVersion "27.3.13750724"
 
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_1_8
-        targetCompatibility JavaVersion.VERSION_1_8
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
     }
 
-    lintOptions {
+    lint {
         // This is important as it will run lint but not abort on error
         // Lint has some overly obnoxious "errors" that should really be warnings
         abortOnError false
-
-        //Uncomment disable lines for test builds...
-        //disable 'MissingTranslation'bin
-        //disable 'ExtraTranslation'
     }
 
     defaultConfig {
         // TODO If this is ever modified, change application_id in strings.xml
         applicationId "org.citra.citra_emu"
-        minSdkVersion 26
-        targetSdkVersion 28
+        minSdk 26
+        targetSdk 35
         versionCode autoVersion
         versionName getVersion()
-        ndk.abiFilters abiFilter
+        ndk {
+            abiFilters abiFilter
+        }
     }
 
     signingConfigs {
@@ -44,10 +43,6 @@ android {
         //    keyAlias = 'key0'
         //    keyPassword System.getenv('ANDROID_KEYPASS')
         //}
-    }
-
-    applicationVariants.all { variant ->
-        buildType = variant.buildType.name // sets the current build type
     }
 
     // Define build types, which are orthogonal to product flavors.
@@ -66,7 +61,6 @@ android {
             versionNameSuffix '-debug'
             signingConfig signingConfigs.debug
             minifyEnabled false
-            testCoverageEnabled false
             debuggable true
             jniDebuggable true
         }
@@ -84,7 +78,7 @@ android {
 
     externalNativeBuild {
         cmake {
-            version "3.10.2"
+            // AGP 8.x 不再用 version 字段,会自动用 SDK Manager 装的 CMake
             path "../../../CMakeLists.txt"
         }
     }
@@ -104,24 +98,24 @@ android {
 }
 
 dependencies {
-    implementation 'androidx.appcompat:appcompat:1.1.0'
-    implementation 'androidx.exifinterface:exifinterface:1.2.0'
+    implementation 'androidx.appcompat:appcompat:1.7.0'
+    implementation 'androidx.exifinterface:exifinterface:1.3.7'
     implementation 'androidx.cardview:cardview:1.0.0'
-    implementation 'androidx.recyclerview:recyclerview:1.1.0'
-    implementation 'com.google.android.material:material:1.1.0'
+    implementation 'androidx.recyclerview:recyclerview:1.3.2'
+    implementation 'com.google.android.material:material:1.12.0'
 
     // For loading huge screenshots from the disk.
-    implementation 'com.squareup.picasso:picasso:2.71828'
+    implementation 'com.squareup.picasso:picasso:2.8'
 
     // Allows FRP-style asynchronous operations in Android.
     implementation 'io.reactivex:rxandroid:1.2.1'
     implementation 'com.nononsenseapps:filepicker:4.2.1'
     implementation 'org.ini4j:ini4j:0.5.4'
-    implementation 'androidx.constraintlayout:constraintlayout:1.1.3'
-    implementation 'androidx.localbroadcastmanager:localbroadcastmanager:1.0.0'
-    implementation 'androidx.swiperefreshlayout:swiperefreshlayout:1.0.0'
+    implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
+    implementation 'androidx.localbroadcastmanager:localbroadcastmanager:1.1.0'
+    implementation 'androidx.swiperefreshlayout:swiperefreshlayout:1.1.0'
 
-    implementation 'com.android.billingclient:billing:2.2.0'
+    implementation 'com.android.billingclient:billing:7.1.1'
 }
 
 def getVersion() {
