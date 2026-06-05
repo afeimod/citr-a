@@ -94,7 +94,10 @@ class NDKMotion final : public Input::MotionDevice {
     }
 
     void Update() const {
-        ALooper_pollAll(0, nullptr, nullptr, nullptr);
+        // NDK 27 里 ALooper_pollAll 已被标 unavailable(obsoleted in Android 1,
+        // 说它可能丢失 wake,推荐用 ALooper_pollOnce)。签名一致,语义稍微不同
+        // (pollAll 是 pollOnce + 循环处理所有,这里我们只关心取传感器事件,差异无所谓)。
+        ALooper_pollOnce(0, nullptr, nullptr, nullptr);
         ASensorEvent event{};
         std::optional<Vec3<float>> new_accel{}, new_rot{};
         while (ASensorEventQueue_getEvents(event_queue, &event, 1) > 0) {
