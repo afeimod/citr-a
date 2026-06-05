@@ -33,8 +33,13 @@ if (DEFINED ENV{CI})
   endif()
 
   # regex capture the string nightly or canary into CMAKE_MATCH_1
-  string(REGEX MATCH "citra-emu/citra-?(.*)" OUTVAR ${BUILD_REPOSITORY})
-  if ("${CMAKE_MATCH_COUNT}" GREATER 0)
+  # CI 传进来的 BUILD_REPOSITORY / BUILD_TAG 可能是空串(GitHub Actions 不是 Travis/Appveyor/Bitrise),
+  # 此时 ${BUILD_REPOSITORY} 展开为空,string(REGEX MATCH) 会少参数报"needs at least 5 arguments"。
+  # 这里用 if 守一下,空就跳过这整块。
+  if (BUILD_REPOSITORY)
+    string(REGEX MATCH "citra-emu/citra-?(.*)" OUTVAR ${BUILD_REPOSITORY})
+  endif()
+  if (BUILD_REPOSITORY AND "${CMAKE_MATCH_COUNT}" GREATER 0)
     # capitalize the first letter of each word in the repo name.
     string(REPLACE "-" ";" REPO_NAME_LIST ${CMAKE_MATCH_1})
     foreach(WORD ${REPO_NAME_LIST})
