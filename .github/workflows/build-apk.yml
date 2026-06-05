@@ -1,3 +1,14 @@
+# =============================================================================
+# GitHub Actions: 手动触发构建 APK
+#
+# 仓库 -> Actions -> "Build Android APK" -> Run workflow
+# 弹窗顶部 GitHub 自带 branch/tag 选择器,选好分支 + 下面的构建参数即可
+#
+# 前置条件:.gitmodules 里 4 个死链 URL(citra-emu/ext-boost、
+#          citra-emu/dynarmic-android、citra-emu/ext-soundtouch、
+#          citra-emu/ext-libressl-portable)已经改成你自己的 fork
+# =============================================================================
+
 name: Build Android APK
 
 on:
@@ -39,18 +50,18 @@ jobs:
 
     steps:
       # ---------------------------------------------------------------
-      # 1. 拉取用户在 GitHub UI 顶部选中的 branch/tag 源码
+      # 1. 拉取源码 + 所有子模块(.gitmodules 里的 URL 已修正)
       # ---------------------------------------------------------------
       - name: Checkout source (${{ github.ref_name }})
         uses: actions/checkout@v4
         with:
           ref: ${{ github.ref }}
-          fetch-depth: 1
           submodules: recursive
           lfs: true
+          fetch-depth: 1
 
       # ---------------------------------------------------------------
-      # 2. 设置 JDK 17(AGP 8.x 需要;AGP 7.x 用 11 也行)
+      # 2. 设置 JDK 17(AGP 8.x 需要)
       # ---------------------------------------------------------------
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -66,18 +77,15 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
         with:
-          # 接受所有 licenses
           accept-sdk-licenses: true
-          # NDK 版本,空字符串表示让 Gradle 自己挑
           ndk-version: ${{ inputs.ndk_version || '' }}
-          # 默认安装的 build-tools / platforms,可按需增减
           build-tools: "34.0.0"
           packages: |
             platform-tools
             platforms;android-34
 
       # ---------------------------------------------------------------
-      # 4. 给 gradlew 执行权限(Windows 上传时常丢 +x)
+      # 4. 给 gradlew 执行权限
       # ---------------------------------------------------------------
       - name: Make gradlew executable
         run: chmod +x src/android/gradlew
@@ -86,9 +94,6 @@ jobs:
       # 5. 跑构建
       #    debug   -> assembleDebug
       #    release -> assembleRelease
-      #    首字母大写:
-      #       ${{ inputs.build_type }}  -> assembleDebug
-      #    偷个懒用 bash 参数展开
       # ---------------------------------------------------------------
       - name: Build APK
         working-directory: src/android
@@ -98,17 +103,16 @@ jobs:
           set -eux
           VARIANT="$(tr '[:lower:]' '[:upper:]' <<< '${inputs.build_type}')"
           echo "==> Building assemble${VARIANT} on ref ${GITHUB_REF_NAME} (commit ${GITHUB_SHA::8})"
-          echo "    (selected from GitHub UI 'Run workflow from' branch picker)"
+          echo "    (branch selected from GitHub UI 'Run workflow from' picker)"
           ./gradlew "assemble${VARIANT}" --no-daemon --stacktrace
 
       # ---------------------------------------------------------------
-      # 6. 收集 APK 作为可下载 artifact(默认 90 天)
+      # 6. 收集 APK 作为可下载 artifact
       # ---------------------------------------------------------------
       - name: Collect APK artifacts
         if: always()
         run: |
           mkdir -p apk-output
-          # 把所有变体的 APK 都收集起来,方便对比
           find src/android/app/build/outputs/apk -name "*.apk" -exec cp -v {} apk-output/ \; 2>/dev/null || true
           echo "---- APK 列表 ----"
           ls -lh apk-output/ || true
@@ -123,7 +127,7 @@ jobs:
           retention-days: 30
 
       # ---------------------------------------------------------------
-      # 7. 构建失败时,顺手把 build 日志一起打包,方便排查
+      # 7. 构建失败时打包 Gradle 日志方便排查
       # ---------------------------------------------------------------
       - name: Upload Gradle logs on failure
         if: failure()
@@ -135,4 +139,3 @@ jobs:
             ~/.gradle/daemon/**/*.log
           if-no-files-found: ignore
           retention-days: 7
-
