@@ -182,8 +182,10 @@ public class BillingManager implements PurchasesUpdatedListener {
         Runnable queryToExecute = new Runnable() {
             @Override
             public void run() {
+                // billing 7.x: QueryPurchasesParams.Builder.setSkuType(String) 已删除,
+                // 改用 setProductType(String),值用 ProductType.INAPP(原来 SkuType.INAPP 已弃用)
                 QueryPurchasesParams params = QueryPurchasesParams.newBuilder()
-                        .setSkuType(BillingClient.SkuType.INAPP)
+                        .setProductType(BillingClient.ProductType.INAPP)
                         .build();
                 PurchasesResponseListener listener = (billingResult, purchaseList) ->
                         onQueryPurchasesFinished(billingResult, purchaseList);
