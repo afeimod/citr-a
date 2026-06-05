@@ -75,20 +75,17 @@ jobs:
       #    android-actions/setup-android@v3 的 API 重命名了:
       #      - accept-sdk-licenses  -> accept-android-sdk-licenses
       #      - ndk-version / build-tools 被移除,要在 packages 里写
-      #    默认 NDK 用 21.4.7075529(这是 2020 年项目常用的老版本,
-      #    原项目 build.gradle 没指定 ndkVersion,留空让 Gradle 决定
-      #    反而会用最新 NDK(27+),老代码可能不兼容)
+      #    packages 必须是空格分隔的单行字符串,不能用 | 块!!
+      #    默认 NDK 用 21.4.7075529(2020 年项目常用老版本,
+      #    原 build.gradle 没指定 ndkVersion,留空让 Gradle 选
+      #    会用最新 27+,老 C++ 代码可能编不过)
       # ---------------------------------------------------------------
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
         with:
           accept-android-sdk-licenses: true
           log-accepted-android-sdk-licenses: false
-          packages: |
-            platform-tools
-            platforms;android-34
-            build-tools;34.0.0
-            ndk;${{ inputs.ndk_version || '21.4.7075529' }}
+          packages: "platform-tools platforms;android-34 build-tools;34.0.0 ndk;${{ inputs.ndk_version || '21.4.7075529' }}"
 
       # ---------------------------------------------------------------
       # 4. 给 gradlew 执行权限
