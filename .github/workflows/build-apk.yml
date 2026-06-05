@@ -61,16 +61,14 @@ jobs:
           fetch-depth: 1
 
       # ---------------------------------------------------------------
-      # 2. 设置 JDK 11
-      #    项目用的是 Gradle 5.6.4 + AGP 3.6.1(都是 2020 年),
-      #    只支持 Java 8/11/12/13,跑 JDK 17 会 NoClassDefFoundError。
-      #    如果以后升级 Gradle/AGP 到 7.x+,这里改成 17
+      # 2. 设置 JDK 17
+      #    升级到 Gradle 8.13 + AGP 8.13.2 后,需要 JDK 17+
       # ---------------------------------------------------------------
-      - name: Set up JDK 11
+      - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: 11
+          java-version: 17
           cache: gradle
 
       # ---------------------------------------------------------------
@@ -79,16 +77,18 @@ jobs:
       #      - accept-sdk-licenses  -> accept-android-sdk-licenses
       #      - ndk-version / build-tools 被移除,要在 packages 里写
       #    packages 必须是空格分隔的单行字符串,不能用 | 块!!
-      #    默认 NDK 用 21.4.7075529(2020 年项目常用老版本,
-      #    原 build.gradle 没指定 ndkVersion,留空让 Gradle 选
-      #    会用最新 27+,老 C++ 代码可能编不过)
+      #    配合 AGP 8.13.2 升级到:
+      #      - platforms;android-35
+      #      - build-tools;35.0.0
+      #      - ndk;27.3.13750724
+      #      - cmake;3.22.1(AGP 8 自动用 SDK 里的 CMake)
       # ---------------------------------------------------------------
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
         with:
           accept-android-sdk-licenses: true
           log-accepted-android-sdk-licenses: false
-          packages: "platform-tools platforms;android-34 build-tools;34.0.0 ndk;${{ inputs.ndk_version || '21.4.7075529' }}"
+          packages: "platform-tools platforms;android-35 build-tools;35.0.0 ndk;${{ inputs.ndk_version || '27.3.13750724' }} cmake;3.22.1"
 
       # ---------------------------------------------------------------
       # 4. 给 gradlew 执行权限
