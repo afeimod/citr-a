@@ -12,8 +12,9 @@ import com.android.billingclient.api.BillingClientStateListener;
 import com.android.billingclient.api.BillingFlowParams;
 import com.android.billingclient.api.BillingResult;
 import com.android.billingclient.api.Purchase;
-import com.android.billingclient.api.Purchase.PurchasesResult;
+import com.android.billingclient.api.PurchasesResponseListener;
 import com.android.billingclient.api.PurchasesUpdatedListener;
+import com.android.billingclient.api.QueryPurchasesParams;
 import com.android.billingclient.api.SkuDetails;
 import com.android.billingclient.api.SkuDetailsParams;
 
@@ -96,7 +97,8 @@ public class BillingManager implements PurchasesUpdatedListener {
 
         Purchase premiumPurchase = null;
         for (Purchase purchase : purchaseList) {
-            if (purchase.getSku().equals(BILLING_SKU_PREMIUM)) {
+            // billing 7.x: getSku() 已删除,改用 getProducts() (List<String>)
+            if (purchase.getProducts().contains(BILLING_SKU_PREMIUM)) {
                 premiumPurchase = purchase;
             }
         }
@@ -162,22 +164,30 @@ public class BillingManager implements PurchasesUpdatedListener {
         executeServiceRequest(queryToExecute);
     }
 
-    private void onQueryPurchasesFinished(PurchasesResult result) {
+    /**
+     * billing 7.x: queryPurchases(String) 已删除,改用 queryPurchasesAsync(QueryPurchasesParams, ...),
+     * 回调里直接拿到 BillingResult 和 List<Purchase>,不再有中间的 PurchasesResult 类型。
+     */
+    private void onQueryPurchasesFinished(BillingResult billingResult, List<Purchase> purchaseList) {
         // Have we been disposed of in the meantime? If so, or bad result code, then quit
-        if (mBillingClient == null || result.getResponseCode() != BillingClient.BillingResponseCode.OK) {
+        if (mBillingClient == null || billingResult.getResponseCode() != BillingClient.BillingResponseCode.OK) {
             updatePremiumState(false);
             return;
         }
         // Update the UI and purchases inventory with new list of purchases
-        onPurchasesUpdated(result.getBillingResult(), result.getPurchasesList());
+        onPurchasesUpdated(billingResult, purchaseList);
     }
 
     private void queryPurchases() {
         Runnable queryToExecute = new Runnable() {
             @Override
             public void run() {
-                final PurchasesResult purchasesResult = mBillingClient.queryPurchases(BillingClient.SkuType.INAPP);
-                onQueryPurchasesFinished(purchasesResult);
+                QueryPurchasesParams params = QueryPurchasesParams.newBuilder()
+                        .setSkuType(BillingClient.SkuType.INAPP)
+                        .build();
+                PurchasesResponseListener listener = (billingResult, purchaseList) ->
+                        onQueryPurchasesFinished(billingResult, purchaseList);
+                mBillingClient.queryPurchasesAsync(params, listener);
             }
         };
 
