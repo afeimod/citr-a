@@ -40,10 +40,12 @@ public class CustomFilePickerFragment extends FilePickerFragment {
         super.onActivityCreated(savedInstanceState);
 
         if (mode == MODE_DIR) {
-            TextView ok = getActivity().findViewById(R.id.nnf_button_ok);
+            // nnf_button_ok / nnf_button_cancel 是 nononsenseapps:filepicker 库里的资源,
+            // 不在本模块的 R 里,得用库自己的 R(本模块的 R 只包含 main/res 下的资源)
+            TextView ok = getActivity().findViewById(com.nononsenseapps.filepicker.R.id.nnf_button_ok);
             ok.setText(R.string.select_dir);
 
-            TextView cancel = getActivity().findViewById(R.id.nnf_button_cancel);
+            TextView cancel = getActivity().findViewById(com.nononsenseapps.filepicker.R.id.nnf_button_cancel);
             cancel.setVisibility(View.GONE);
         }
     }
