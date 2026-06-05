@@ -16,6 +16,16 @@ set(Boost_NO_SYSTEM_PATHS ON)
 add_library(boost INTERFACE)
 target_include_directories(boost SYSTEM INTERFACE ${Boost_INCLUDE_DIR})
 
+# 老版本 Boost 还在用 std::unary_function / std::binary_function,
+# 这俩在 C++17 里被移除了(libc++ 不再暴露)。NDK 27 自带的 libc++ 默认是 C++17,
+# 编译会报: 'no template named unary_function in namespace std'。
+# libc++ 提供了一个 extension 宏,只要定义了这个宏,就会把 unary_function/binary_function
+# 重新暴露出来,让老 Boost 代码能继续编。Android 下全局打开,覆盖所有 .cpp。
+if (ANDROID)
+    target_compile_definitions(boost INTERFACE -D_LIBCPP_ENABLE_CXX17_REMOVED_UNARY_BINARY_FUNCTION)
+    add_compile_definitions(_LIBCPP_ENABLE_CXX17_REMOVED_UNARY_BINARY_FUNCTION)
+endif()
+
 # Boost::serialization
 file(GLOB boost_serialization_SRC "${CMAKE_SOURCE_DIR}/externals/boost/libs/serialization/src/*.cpp")
 add_library(boost_serialization STATIC ${boost_serialization_SRC})
