@@ -41,22 +41,19 @@ public final class MainPresenter {
         }
         mLastClickTime = SystemClock.elapsedRealtime();
 
-        switch (itemId) {
-            case R.id.menu_settings_core:
-                mView.launchSettingsActivity(SettingsFile.FILE_NAME_CONFIG);
-                return true;
-
-            case R.id.button_add_directory:
-                launchFileListActivity(REQUEST_ADD_DIRECTORY);
-                return true;
-
-            case R.id.button_install_cia:
-                launchFileListActivity(REQUEST_INSTALL_CIA);
-                return true;
-
-            case R.id.button_premium:
-                mView.launchSettingsActivity(Settings.SECTION_PREMIUM);
-                return true;
+        // AGP 8.0+ 默认 R 字段不再是 final 常量,不能直接用 case R.id.xxx,改成 if-else
+        if (itemId == R.id.menu_settings_core) {
+            mView.launchSettingsActivity(SettingsFile.FILE_NAME_CONFIG);
+            return true;
+        } else if (itemId == R.id.button_add_directory) {
+            launchFileListActivity(REQUEST_ADD_DIRECTORY);
+            return true;
+        } else if (itemId == R.id.button_install_cia) {
+            launchFileListActivity(REQUEST_INSTALL_CIA);
+            return true;
+        } else if (itemId == R.id.button_premium) {
+            mView.launchSettingsActivity(Settings.SECTION_PREMIUM);
+            return true;
         }
 
         return false;
