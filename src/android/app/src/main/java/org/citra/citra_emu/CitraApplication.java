@@ -46,7 +46,14 @@ public class CitraApplication extends Application {
 
         createNotificationChannel();
 
-        databaseHelper = new GameDatabase(this);
+        try {
+            databaseHelper = new GameDatabase(this);
+        } catch (Throwable t) {
+            // 启动早期任何数据库异常都打到 logcat(MIUI 智能助手能看到 Log.e),
+            // 不要让一个非关键依赖把整个 app 带崩
+            android.util.Log.e("CitraApp",
+                    "GameDatabase init failed: " + t.getClass().getName() + ": " + t.getMessage(), t);
+        }
     }
 
     public static Context getAppContext() {
