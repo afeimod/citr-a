@@ -20,14 +20,6 @@
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <!-- Android 11 (API 30) 起,系统用 scoped storage。
-         项目里依赖的 com.nononsenseapps:filepicker:4.2.1 是个死项目(最后一次更新在 2018),
-         直接访问 Environment.getExternalStorageDirectory() 会被系统拒,然后在 Android 15 上崩。
-         MANAGE_EXTERNAL_STORAGE 是个特殊权限,需要用户到设置里手动授权,
-         授了之后能读 /storage/emulated/0 整棵树,老库才能跑。
-         Google Play 对这个权限有限制,但这个项目是侧载,无所谓。-->
-    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
-        tools:ignore="ScopedStorage" />
     <!-- Android 13 (API 33) 起:发通知必须运行时申请这个权限,不申请发不出去,
          高版本 (Android 13/14/15) 上 createNotificationChannel 之类的能跑,
          但 tryDismissRunningNotification 之类的会被静默拒掉。-->
