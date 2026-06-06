@@ -9,7 +9,6 @@ package org.citra.citra_emu.utils;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
-import android.os.Environment;
 import android.preference.PreferenceManager;
 
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
@@ -47,7 +46,7 @@ public final class DirectoryInitialization {
 
         if (directoryState != DirectoryInitializationState.CITRA_DIRECTORIES_INITIALIZED) {
             if (PermissionsHandler.hasWriteAccess(context)) {
-                if (setCitraUserDirectory()) {
+                if (setCitraUserDirectory(context)) {
                     initializeInternalStorage(context);
                     NativeLibrary.CreateConfigFile();
                     directoryState = DirectoryInitializationState.CITRA_DIRECTORIES_INITIALIZED;
@@ -87,18 +86,30 @@ public final class DirectoryInitialization {
 
     private static native void SetSysDirectory(String path);
 
-    private static boolean setCitraUserDirectory() {
-        if (Environment.MEDIA_MOUNTED.equals(Environment.getExternalStorageState())) {
-            File externalPath = Environment.getExternalStorageDirectory();
-            if (externalPath != null) {
-                userPath = externalPath.getAbsolutePath() + "/citra-emu";
+    private static boolean setCitraUserDirectory(Context context) {
+        // 之前用 Environment.getExternalStorageDirectory() (/storage/emulated/0/citra-emu),
+        // Android 11+ scoped storage 之后这个路径被系统隔离,Android 15 更是只有
+        // MANAGE_EXTERNAL_STORAGE 才能读写,MIUI/HyperOS 还不让用户授这个权限,
+        // 导致 config.ini / 存档 / shader cache 全部读不到,SettingsActivity 一点就崩。
+        //
+        // 改用 context.getExternalFilesDir(null) — app 私有的外部存储目录,
+        // 任何 Android 版本都不需要任何特殊权限,跨 ROM (MIUI/ColorOS/原生) 都能读写。
+        // 路径形如 /storage/emulated/0/Android/data/<package>/files
+        // native 代码不关心具体路径,只要这个目录可写就行。
+        try {
+            File appExternalDir = context.getExternalFilesDir(null);
+            if (appExternalDir != null) {
+                // 保证目录存在
+                if (!appExternalDir.exists()) {
+                    appExternalDir.mkdirs();
+                }
+                userPath = appExternalDir.getAbsolutePath();
                 Log.debug("[DirectoryInitialization] User Dir: " + userPath);
-                // NativeLibrary.SetUserDirectory(userPath);
                 return true;
             }
-
+        } catch (Exception e) {
+            Log.error("[DirectoryInitialization] getExternalFilesDir failed: " + e.getMessage());
         }
-
         return false;
     }
 
