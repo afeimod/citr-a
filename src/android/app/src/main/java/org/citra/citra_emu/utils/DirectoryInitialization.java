@@ -96,19 +96,27 @@ public final class DirectoryInitialization {
         // 任何 Android 版本都不需要任何特殊权限,跨 ROM (MIUI/ColorOS/原生) 都能读写。
         // 路径形如 /storage/emulated/0/Android/data/<package>/files
         // native 代码不关心具体路径,只要这个目录可写就行。
-        try {
-            File appExternalDir = context.getExternalFilesDir(null);
-            if (appExternalDir != null) {
-                // 保证目录存在
-                if (!appExternalDir.exists()) {
-                    appExternalDir.mkdirs();
+        //
+        // getExternalFilesDir() 在个别 ROM 上可能返回 null(存储未挂载),
+        // 走内部存储 fallback:Context.getFilesDir() — 总是可写,只是卸载会清。
+        File[] candidates = new File[]{
+                context.getExternalFilesDir(null),
+                context.getFilesDir()
+        };
+        for (File dir : candidates) {
+            if (dir == null) continue;
+            try {
+                if (!dir.exists()) {
+                    dir.mkdirs();
                 }
-                userPath = appExternalDir.getAbsolutePath();
-                Log.debug("[DirectoryInitialization] User Dir: " + userPath);
-                return true;
+                if (dir.isDirectory() && dir.canWrite()) {
+                    userPath = dir.getAbsolutePath();
+                    Log.debug("[DirectoryInitialization] User Dir: " + userPath);
+                    return true;
+                }
+            } catch (Exception e) {
+                Log.error("[DirectoryInitialization] dir " + dir + " failed: " + e.getMessage());
             }
-        } catch (Exception e) {
-            Log.error("[DirectoryInitialization] getExternalFilesDir failed: " + e.getMessage());
         }
         return false;
     }
