@@ -134,7 +134,8 @@ public final class MainActivity extends AppCompatActivity implements MainView {
         inflater.inflate(R.menu.menu_game_grid, menu);
         mPremiumButton = menu.findItem(R.id.button_premium);
 
-        if (mBillingManager.isPremiumCached()) {
+        // mBillingManager 可能为 null(onCreate 里的 try-catch 抓住 BillingClient 7.x 异常后)
+        if (mBillingManager != null && mBillingManager.isPremiumCached()) {
             // User had premium in a previous session, hide upsell option
             setPremiumButtonVisible(false);
         }
