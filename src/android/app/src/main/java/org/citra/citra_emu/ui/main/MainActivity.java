@@ -174,6 +174,8 @@ public final class MainActivity extends AppCompatActivity implements MainView {
 
     @Override
     public void launchFileListActivity(int request) {
+        // MANAGE_EXTERNAL_STORAGE 检查已下沉到 FileBrowserHelper,
+        // 那里统一处理(弹 toast + 跱设置页),这里不需要重复。
         if (PermissionsHandler.hasWriteAccess(this)) {
             switch (request) {
                 case MainPresenter.REQUEST_ADD_DIRECTORY:
