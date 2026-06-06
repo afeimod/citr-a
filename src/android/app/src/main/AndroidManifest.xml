@@ -34,8 +34,6 @@
         android:supportsRtl="true"
         android:isGame="true"
         android:banner="@mipmap/ic_launcher"
-        android:dataExtractionRules="@xml/data_extraction_rules"
-        android:fullBackupContent="@xml/backup_rules"
         tools:targetApi="33">
 
         <activity
