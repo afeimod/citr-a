@@ -1,7 +1,9 @@
 package org.citra.citra_emu.ui.main;
 
+import android.Manifest;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.os.Build;
 import android.os.Bundle;
 import android.view.Menu;
 import android.view.MenuInflater;
@@ -11,6 +13,8 @@ import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 
 import org.citra.citra_emu.NativeLibrary;
 import org.citra.citra_emu.R;
@@ -59,6 +63,17 @@ public final class MainActivity extends AppCompatActivity implements MainView {
 
         mFrameLayoutId = R.id.games_platform_frame;
         mPresenter.onCreate();
+
+        // Android 13 (API 33) 起 POST_NOTIFICATIONS 变成 dangerous permission,
+        // 不申请拿不到,后面 tryDismissRunningNotification / notification channel 都可能被静默拒掉。
+        // 在主界面起来时请求一次,用户拒了也不影响主流程(只是通知不出来)。
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+                    != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(this,
+                        new String[]{Manifest.permission.POST_NOTIFICATIONS}, 1001);
+            }
+        }
 
         if (savedInstanceState == null) {
             StartupHandler.HandleInit(this);
