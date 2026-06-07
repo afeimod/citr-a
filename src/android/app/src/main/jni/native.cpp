@@ -281,15 +281,6 @@ void Java_org_citra_citra_1emu_NativeLibrary_SetUserDirectory(JNIEnv* env,
     LOG_INFO(Frontend, "SetUserDirectory done. ConfigDir = {}", cfg_dir_check);
 }
 
-// 保留旧名称的别名,补丁后 Java 调的是 SetUserDirectory 上面的实现,这里只是
-// 预防万一。
-void Java_org_citra_citra_1emu_NativeLibrary_RebindConfigPath(JNIEnv* env,
-                                                               [[maybe_unused]] jclass clazz) {
-    // Java 可以调这个,提醒 native“Config 缓存可能指向老路径,重读一次”
-    static thread_local Config g_config;
-    g_config.ReinitAfterSetUserPath();
-}
-
 jobjectArray Java_org_citra_citra_1emu_NativeLibrary_GetInstalledGamePaths(
     JNIEnv* env, [[maybe_unused]] jclass clazz) {
     std::vector<std::string> games;

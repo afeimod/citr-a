@@ -31,21 +31,6 @@ Config::Config() {
     Reload();
 }
 
-// 额外提供一个“重新绑定路径”的入口,在 Java 调完 SetUserDirectory 之后可以
-// 重新走一次。如果 SetUserDirectory 是在 Config{} 构造之前调用的(我们补丁后的
-// 顺序就是这样),这里不会被使用;但如果哪个调用链意外地把 Config{} 走在了
-// SetUserDirectory 之前,这里能让 Config 重新指向新路径。
-void Config::ReinitAfterSetUserPath() {
-    const std::string new_loc = FileUtil::GetUserPath(FileUtil::UserPath::ConfigDir) + "config.ini";
-    if (new_loc == sdl2_config_loc) {
-        return;
-    }
-    LOG_WARNING(Config, "ReinitAfterSetUserPath: {} -> {}", sdl2_config_loc, new_loc);
-    sdl2_config_loc = new_loc;
-    sdl2_config = std::make_unique<INIReader>(sdl2_config_loc);
-    Reload();
-}
-
 Config::~Config() = default;
 
 bool Config::LoadINI(const std::string& default_contents, bool retry) {
@@ -95,9 +80,10 @@ void Config::UpdateCFG() {
         if (!save_result.IsSuccess()) {
             // 路径不可写(比如 Android 13+ /sdcard 拒访),底层现在应该返回错误码而不是
             // 跳 ASSERT。这里仅作日志,不让 app 崩。
+            // 注:ResultCode 是 union,public 成员是 .raw,没有 GetRaw() 方法。
             LOG_ERROR(Config,
-                      "UpdateConfigNANDSavegame returned {} (ignored, app continues)",
-                      save_result.GetRaw());
+                      "UpdateConfigNANDSavegame returned 0x{:08X} (ignored, app continues)",
+                      save_result.raw);
         }
     } catch (...) {
         // 最后一击:Module() 构造里面如出现任何意外(例如 .Unwrap() 之类的),不要

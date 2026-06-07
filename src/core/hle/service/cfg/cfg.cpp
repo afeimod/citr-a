@@ -588,9 +588,10 @@ ResultCode Module::LoadConfigNANDSaveFile() {
             // 原本这里 .Unwrap() 会触发 result.h:402 "Tried to Unwrap empty ResultVal"
             // 直接闪退。改成只设个空 archive、跳过 OpenFile,让下面的 FormatConfig()
             // 走空 buffer 也比 crash 强,后续重试(例如用户切换了有效路径)能恢复。
+            // 注:ResultCode 是 union,直接读 .raw 拿原始 u32(ResultCode 没 GetRaw 方法)。
             LOG_ERROR(Service_CFG,
-                      "Retry open CFG SystemSaveData archive still failed: {}",
-                      retry_result.Code().GetRaw());
+                      "Retry open CFG SystemSaveData archive still failed: 0x{:08X}",
+                      retry_result.Code().raw);
             return RESULT_SUCCESS;
         }
         cfg_system_save_data_archive = std::move(retry_result).Unwrap();
@@ -599,8 +600,8 @@ ResultCode Module::LoadConfigNANDSaveFile() {
             // 同样去掉 ASSERT_MSG,转 Error + 静默返回。后续游戏起来后 CFG service
             // 还会被 HLE 调,到时候路径对了自然能读。
             LOG_ERROR(Service_CFG,
-                      "Could not open the CFG SystemSaveData archive: {}",
-                      archive_result.Code().GetRaw());
+                      "Could not open the CFG SystemSaveData archive: 0x{:08X}",
+                      archive_result.Code().raw);
             return RESULT_SUCCESS;
         }
         cfg_system_save_data_archive = std::move(archive_result).Unwrap();
