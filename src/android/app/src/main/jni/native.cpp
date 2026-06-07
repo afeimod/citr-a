@@ -274,6 +274,20 @@ void Java_org_citra_citra_1emu_NativeLibrary_SetUserDirectory(JNIEnv* env,
     setenv("CITRA_ANDROID_DATA", directory.c_str(), 1);
     FileUtil::SetUserPath(directory);
     FileUtil::SetCurrentDir(directory);
+    // 验证一下: SetUserPath 之后 GetUserPath 是否真的返回了新路径。
+    // 如果还返回老路径,说 file_util.cpp 里的 g_paths 是 namespace local 的、或者其他
+    // 编译单元拿到的是另一份,这种问题从这里能一眼看出来。
+    const std::string& cfg_dir_check = FileUtil::GetUserPath(FileUtil::UserPath::ConfigDir);
+    LOG_INFO(Frontend, "SetUserDirectory done. ConfigDir = {}", cfg_dir_check);
+}
+
+// 保留旧名称的别名,补丁后 Java 调的是 SetUserDirectory 上面的实现,这里只是
+// 预防万一。
+void Java_org_citra_citra_1emu_NativeLibrary_RebindConfigPath(JNIEnv* env,
+                                                               [[maybe_unused]] jclass clazz) {
+    // Java 可以调这个,提醒 native“Config 缓存可能指向老路径,重读一次”
+    static thread_local Config g_config;
+    g_config.ReinitAfterSetUserPath();
 }
 
 jobjectArray Java_org_citra_citra_1emu_NativeLibrary_GetInstalledGamePaths(

@@ -681,8 +681,17 @@ void SetUserPath(const std::string& path) {
     if (!path.empty() && CreateFullPath(path)) {
         LOG_INFO(Common_Filesystem, "Using {} as the user directory", path);
         user_path = path;
-        g_paths.emplace(UserPath::ConfigDir, user_path + CONFIG_DIR DIR_SEP);
-        g_paths.emplace(UserPath::CacheDir, user_path + CACHE_DIR DIR_SEP);
+        // 这里绝对不能用 emplace — std::unordered_map::emplace(key) 不会覆盖已存在的
+        // entry,后果就是:Android JNI_OnLoad 阶段 cwd=/,GetUserPath() 首次走 ANDROID
+        // 兑底,SetUserPath() 跑了一遇把 ConfigDir 设为 //citra-emu/config/(读不进去);
+        // 之后 Java 调 SetUserDirectory(/storage/.../Android/data/.../files) 再跑 SetUserPath
+        // 想覆盖 ConfigDir,但 emplace 不动老 entry,后续所有 GetUserPath(ConfigDir) 仍然
+        // 返回 //citra-emu/config/,Config::LoadINI 读不到,NAND archive 创不出来,
+        // 然后 cfg.cpp 里的 .Unwrap() 炸"Tried to Unwrap empty ResultVal"。
+        //
+        // 改成 g_paths[UserPath::Xxx] = …,老 entry 不存在就插入、已存在就直接覆盖。
+        g_paths[UserPath::ConfigDir] = user_path + CONFIG_DIR DIR_SEP;
+        g_paths[UserPath::CacheDir] = user_path + CACHE_DIR DIR_SEP;
     } else {
 #ifdef _WIN32
         user_path = GetExeDirectory() + DIR_SEP USERDATA_DIR DIR_SEP;
@@ -692,8 +701,8 @@ void SetUserPath(const std::string& path) {
             LOG_INFO(Common_Filesystem, "Using the local user directory");
         }
 
-        g_paths.emplace(UserPath::ConfigDir, user_path + CONFIG_DIR DIR_SEP);
-        g_paths.emplace(UserPath::CacheDir, user_path + CACHE_DIR DIR_SEP);
+        g_paths[UserPath::ConfigDir] = user_path + CONFIG_DIR DIR_SEP;
+        g_paths[UserPath::CacheDir] = user_path + CACHE_DIR DIR_SEP;
 #elif ANDROID
         // Android 13+ scoped storage 之后,/sdcard/citra-emu 在没有 MANAGE_EXTERNAL_STORAGE
         // 权限时根本访问不到(连只读都拒),MIUI/HyperOS 还不让用户授这个权限,直接闪退。
@@ -718,35 +727,35 @@ void SetUserPath(const std::string& path) {
                             user_path);
             }
         }
-        g_paths.emplace(UserPath::ConfigDir, user_path + CONFIG_DIR DIR_SEP);
-        g_paths.emplace(UserPath::CacheDir, user_path + CACHE_DIR DIR_SEP);
+        g_paths[UserPath::ConfigDir] = user_path + CONFIG_DIR DIR_SEP;
+        g_paths[UserPath::CacheDir] = user_path + CACHE_DIR DIR_SEP;
 #else
         if (FileUtil::Exists(ROOT_DIR DIR_SEP USERDATA_DIR)) {
             user_path = ROOT_DIR DIR_SEP USERDATA_DIR DIR_SEP;
-            g_paths.emplace(UserPath::ConfigDir, user_path + CONFIG_DIR DIR_SEP);
-            g_paths.emplace(UserPath::CacheDir, user_path + CACHE_DIR DIR_SEP);
+            g_paths[UserPath::ConfigDir] = user_path + CONFIG_DIR DIR_SEP;
+            g_paths[UserPath::CacheDir] = user_path + CACHE_DIR DIR_SEP;
         } else {
             std::string data_dir = GetUserDirectory("XDG_DATA_HOME");
             std::string config_dir = GetUserDirectory("XDG_CONFIG_HOME");
             std::string cache_dir = GetUserDirectory("XDG_CACHE_HOME");
 
             user_path = data_dir + DIR_SEP EMU_DATA_DIR DIR_SEP;
-            g_paths.emplace(UserPath::ConfigDir, config_dir + DIR_SEP EMU_DATA_DIR DIR_SEP);
-            g_paths.emplace(UserPath::CacheDir, cache_dir + DIR_SEP EMU_DATA_DIR DIR_SEP);
+            g_paths[UserPath::ConfigDir] = config_dir + DIR_SEP EMU_DATA_DIR DIR_SEP;
+            g_paths[UserPath::CacheDir] = cache_dir + DIR_SEP EMU_DATA_DIR DIR_SEP;
         }
 #endif
     }
-    g_paths.emplace(UserPath::SDMCDir, user_path + SDMC_DIR DIR_SEP);
-    g_paths.emplace(UserPath::NANDDir, user_path + NAND_DIR DIR_SEP);
-    g_paths.emplace(UserPath::SysDataDir, user_path + SYSDATA_DIR DIR_SEP);
+    g_paths[UserPath::SDMCDir] = user_path + SDMC_DIR DIR_SEP;
+    g_paths[UserPath::NANDDir] = user_path + NAND_DIR DIR_SEP;
+    g_paths[UserPath::SysDataDir] = user_path + SYSDATA_DIR DIR_SEP;
     // TODO: Put the logs in a better location for each OS
-    g_paths.emplace(UserPath::LogDir, user_path + LOG_DIR DIR_SEP);
-    g_paths.emplace(UserPath::CheatsDir, user_path + CHEATS_DIR DIR_SEP);
-    g_paths.emplace(UserPath::DLLDir, user_path + DLL_DIR DIR_SEP);
-    g_paths.emplace(UserPath::ShaderDir, user_path + SHADER_DIR DIR_SEP);
-    g_paths.emplace(UserPath::DumpDir, user_path + DUMP_DIR DIR_SEP);
-    g_paths.emplace(UserPath::LoadDir, user_path + LOAD_DIR DIR_SEP);
-    g_paths.emplace(UserPath::StatesDir, user_path + STATES_DIR DIR_SEP);
+    g_paths[UserPath::LogDir] = user_path + LOG_DIR DIR_SEP;
+    g_paths[UserPath::CheatsDir] = user_path + CHEATS_DIR DIR_SEP;
+    g_paths[UserPath::DLLDir] = user_path + DLL_DIR DIR_SEP;
+    g_paths[UserPath::ShaderDir] = user_path + SHADER_DIR DIR_SEP;
+    g_paths[UserPath::DumpDir] = user_path + DUMP_DIR DIR_SEP;
+    g_paths[UserPath::LoadDir] = user_path + LOAD_DIR DIR_SEP;
+    g_paths[UserPath::StatesDir] = user_path + STATES_DIR DIR_SEP;
 }
 
 std::string g_currentRomPath{};

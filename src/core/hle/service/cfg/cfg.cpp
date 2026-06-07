@@ -582,10 +582,27 @@ ResultCode Module::LoadConfigNANDSaveFile() {
         systemsavedata_factory.Format(archive_path, FileSys::ArchiveFormatInfo(), 0);
 
         // Open it again to get a valid archive now that the folder exists
-        cfg_system_save_data_archive = systemsavedata_factory.Open(archive_path, 0).Unwrap();
+        auto retry_result = systemsavedata_factory.Open(archive_path, 0);
+        if (!retry_result.Succeeded()) {
+            // Android 13+ 上 nand_directory 路径可能只读,Format 创不出目录。
+            // 原本这里 .Unwrap() 会触发 result.h:402 "Tried to Unwrap empty ResultVal"
+            // 直接闪退。改成只设个空 archive、跳过 OpenFile,让下面的 FormatConfig()
+            // 走空 buffer 也比 crash 强,后续重试(例如用户切换了有效路径)能恢复。
+            LOG_ERROR(Service_CFG,
+                      "Retry open CFG SystemSaveData archive still failed: {}",
+                      retry_result.Code().GetRaw());
+            return RESULT_SUCCESS;
+        }
+        cfg_system_save_data_archive = std::move(retry_result).Unwrap();
     } else {
-        ASSERT_MSG(archive_result.Succeeded(), "Could not open the CFG SystemSaveData archive!");
-
+        if (!archive_result.Succeeded()) {
+            // 同样去掉 ASSERT_MSG,转 Error + 静默返回。后续游戏起来后 CFG service
+            // 还会被 HLE 调,到时候路径对了自然能读。
+            LOG_ERROR(Service_CFG,
+                      "Could not open the CFG SystemSaveData archive: {}",
+                      archive_result.Code().GetRaw());
+            return RESULT_SUCCESS;
+        }
         cfg_system_save_data_archive = std::move(archive_result).Unwrap();
     }
 

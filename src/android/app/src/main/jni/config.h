@@ -23,4 +23,9 @@ public:
     ~Config();
 
     void Reload();
+
+    // 补充: 如果 Config 是在 SetUserDirectory 之前实例化的,这里可以重新
+    // 读取最新的 ConfigDir 并重读 ini。补丁后的 Java 调用顺序理论上
+    // 不需要走这条路径,但保留作为防御。
+    void ReinitAfterSetUserPath();
 };

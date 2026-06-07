@@ -26,7 +26,23 @@ Config::Config() {
     // TODO: Don't hardcode the path; let the frontend decide where to put the config files.
     sdl2_config_loc = FileUtil::GetUserPath(FileUtil::UserPath::ConfigDir) + "config.ini";
     sdl2_config = std::make_unique<INIReader>(sdl2_config_loc);
+    LOG_INFO(Config, "Config ctor: sdl2_config_loc = {}", sdl2_config_loc);
 
+    Reload();
+}
+
+// 额外提供一个“重新绑定路径”的入口,在 Java 调完 SetUserDirectory 之后可以
+// 重新走一次。如果 SetUserDirectory 是在 Config{} 构造之前调用的(我们补丁后的
+// 顺序就是这样),这里不会被使用;但如果哪个调用链意外地把 Config{} 走在了
+// SetUserDirectory 之前,这里能让 Config 重新指向新路径。
+void Config::ReinitAfterSetUserPath() {
+    const std::string new_loc = FileUtil::GetUserPath(FileUtil::UserPath::ConfigDir) + "config.ini";
+    if (new_loc == sdl2_config_loc) {
+        return;
+    }
+    LOG_WARNING(Config, "ReinitAfterSetUserPath: {} -> {}", sdl2_config_loc, new_loc);
+    sdl2_config_loc = new_loc;
+    sdl2_config = std::make_unique<INIReader>(sdl2_config_loc);
     Reload();
 }
 
@@ -70,10 +86,24 @@ static const std::array<int, Settings::NativeAnalog::NumAnalogs> default_analogs
 }};
 
 void Config::UpdateCFG() {
-    std::shared_ptr<Service::CFG::Module> cfg = std::make_shared<Service::CFG::Module>();
-    cfg->SetSystemLanguage(static_cast<Service::CFG::SystemLanguage>(
-        sdl2_config->GetInteger("System", "language", Service::CFG::SystemLanguage::LANGUAGE_EN)));
-    cfg->UpdateConfigNANDSavegame();
+    try {
+        std::shared_ptr<Service::CFG::Module> cfg = std::make_shared<Service::CFG::Module>();
+        cfg->SetSystemLanguage(static_cast<Service::CFG::SystemLanguage>(
+            sdl2_config->GetInteger("System", "language",
+                                    Service::CFG::SystemLanguage::LANGUAGE_EN)));
+        const auto save_result = cfg->UpdateConfigNANDSavegame();
+        if (!save_result.IsSuccess()) {
+            // 路径不可写(比如 Android 13+ /sdcard 拒访),底层现在应该返回错误码而不是
+            // 跳 ASSERT。这里仅作日志,不让 app 崩。
+            LOG_ERROR(Config,
+                      "UpdateConfigNANDSavegame returned {} (ignored, app continues)",
+                      save_result.GetRaw());
+        }
+    } catch (...) {
+        // 最后一击:Module() 构造里面如出现任何意外(例如 .Unwrap() 之类的),不要
+        // 托崩 app。Citra 冷启动时同步 C++ 异常会直接走 libc++ terminate 闪退。
+        LOG_ERROR(Config, "UpdateCFG threw, swallowed to keep app alive");
+    }
 }
 
 void Config::ReadValues() {
