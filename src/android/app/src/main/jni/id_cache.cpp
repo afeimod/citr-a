@@ -103,9 +103,19 @@ jint JNI_OnLoad(JavaVM* vm, void* reserved) {
     log_filter.ParseFilterString(Settings::values.log_filter);
     Log::SetGlobalFilter(log_filter);
     Log::AddBackend(std::make_unique<Log::LogcatBackend>());
-    FileUtil::CreateFullPath(FileUtil::GetUserPath(FileUtil::UserPath::LogDir));
-    Log::AddBackend(std::make_unique<Log::FileBackend>(
-        FileUtil::GetUserPath(FileUtil::UserPath::LogDir) + LOG_FILE));
+    // 注意:JNI_OnLoad 跑得非常早,这一刻 java 还没机会调
+    // NativeLibrary.SetUserDirectory(),所以 GetUserPath(LogDir) 会走
+    // file_util.cpp 的 ANDROID 兑底分支。LogDir 路径下可能写不进(/sdcard 被拒
+    // 或 cwd 不可写),LogBackend 本身打开 file 失败不会炸,但 CreateFullPath 也不能
+    // 报异常或 abort。包个 try-style 判断,路径创不出就跳过 file backend,保留 logcat。
+    const std::string log_dir = FileUtil::GetUserPath(FileUtil::UserPath::LogDir);
+    if (FileUtil::CreateFullPath(log_dir)) {
+        Log::AddBackend(std::make_unique<Log::FileBackend>(log_dir + LOG_FILE));
+    } else {
+        // logcat 仍然能收到 log,不阻塞 app 启动
+        LOG_WARNING(Frontend, "Cannot create log dir {}, file logging disabled",
+                    log_dir);
+    }
     LOG_INFO(Frontend, "Logging backend initialised");
 
     // Initialize Java methods

@@ -36,6 +36,11 @@ bool Config::LoadINI(const std::string& default_contents, bool retry) {
     const std::string& location = this->sdl2_config_loc;
     if (sdl2_config->ParseError() < 0) {
         if (retry) {
+            // Android 13+ 上 /sdcard/citra-emu/config/config.ini 可能因为 MediaProvider
+            // SecurityException 没法读 / 写,这里 WriteStringToFile 会静默失败,
+            // 导致第二次重试也是 ParseError < 0。仍尝试写一次默认内容,然后重新解析
+            // 默认字符串(如果 INIReader 支持),否则保持一个空 INIReader 也能让
+            // ReadValues() 走它自己的 default 值,不至于把 app 搞崩。
             LOG_WARNING(Config, "Failed to load {}. Creating file from defaults...", location);
             FileUtil::CreateFullPath(location);
             FileUtil::WriteStringToFile(true, location, default_contents);

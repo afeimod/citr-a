@@ -695,11 +695,31 @@ void SetUserPath(const std::string& path) {
         g_paths.emplace(UserPath::ConfigDir, user_path + CONFIG_DIR DIR_SEP);
         g_paths.emplace(UserPath::CacheDir, user_path + CACHE_DIR DIR_SEP);
 #elif ANDROID
-        if (FileUtil::Exists(DIR_SEP SDCARD_DIR)) {
-            user_path = DIR_SEP SDCARD_DIR DIR_SEP EMU_DATA_DIR DIR_SEP;
-            g_paths.emplace(UserPath::ConfigDir, user_path + CONFIG_DIR DIR_SEP);
-            g_paths.emplace(UserPath::CacheDir, user_path + CACHE_DIR DIR_SEP);
+        // Android 13+ scoped storage 之后,/sdcard/citra-emu 在没有 MANAGE_EXTERNAL_STORAGE
+        // 权限时根本访问不到(连只读都拒),MIUI/HyperOS 还不让用户授这个权限,直接闪退。
+        // 这里直接放弃 /sdcard/ 兜底,改用 getenv("CITRA_ANDROID_DATA") — Java 端
+        // DirectoryInitialization 会把 Context.getExternalFilesDir(null) 写到环境变量里。
+        // 如果 JNI 没被显式初始化(SetUserPath() 没被调过),这里退到 CWD/citra-emu,
+        // 至少在 /data/data/<pkg>/ 下能写,不会因为 sdcard 拒访把 app 整个搞死。
+        const char* android_data = std::getenv("CITRA_ANDROID_DATA");
+        if (android_data != nullptr && android_data[0] != '\0') {
+            user_path = std::string(android_data) + DIR_SEP;
+        } else {
+            char cwd[PATH_MAX] = {};
+            if (getcwd(cwd, sizeof(cwd)) != nullptr) {
+                user_path = std::string(cwd) + DIR_SEP EMU_DATA_DIR DIR_SEP;
+            } else {
+                // 最后一搏:用 /data/local/tmp/citra-emu,绝大多数设备 root shell 才能写,
+                // 但比起直接 abort 还是更安全,反正上层会先调 SetUserPath() 覆盖。
+                user_path = std::string(DIR_SEP) + "data" + DIR_SEP + "local" + DIR_SEP +
+                            "tmp" + DIR_SEP + EMU_DATA_DIR DIR_SEP;
+                LOG_WARNING(Common_Filesystem,
+                            "SetUserPath fallback to {}, please set CITRA_ANDROID_DATA",
+                            user_path);
+            }
         }
+        g_paths.emplace(UserPath::ConfigDir, user_path + CONFIG_DIR DIR_SEP);
+        g_paths.emplace(UserPath::CacheDir, user_path + CACHE_DIR DIR_SEP);
 #else
         if (FileUtil::Exists(ROOT_DIR DIR_SEP USERDATA_DIR)) {
             user_path = ROOT_DIR DIR_SEP USERDATA_DIR DIR_SEP;

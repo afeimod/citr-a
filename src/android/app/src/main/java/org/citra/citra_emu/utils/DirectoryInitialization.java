@@ -47,6 +47,11 @@ public final class DirectoryInitialization {
         if (directoryState != DirectoryInitializationState.CITRA_DIRECTORIES_INITIALIZED) {
             if (PermissionsHandler.hasWriteAccess(context)) {
                 if (setCitraUserDirectory(context)) {
+                    // 关键修复:必须把 userPath 推到 native,否则 native 端走默认的
+                    // /sdcard/citra-emu/ 路径,Android 13+ 上 MediaProvider 直接 SecurityException,
+                    // 然后 cfg.cpp:430 assertion,app 闪退。修在 native.cpp 的 SetUserDirectory
+                    // 里面,这里只是补上 java 这一端漏掉的调用。
+                    NativeLibrary.SetUserDirectory(userPath);
                     initializeInternalStorage(context);
                     NativeLibrary.CreateConfigFile();
                     directoryState = DirectoryInitializationState.CITRA_DIRECTORIES_INITIALIZED;

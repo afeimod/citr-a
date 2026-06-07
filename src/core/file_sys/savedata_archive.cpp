@@ -88,7 +88,12 @@ ResultVal<std::unique_ptr<FileBackend>> SaveDataArchive::OpenFile(const Path& pa
 
     FileUtil::IOFile file(full_path, mode.write_flag ? "r+b" : "rb");
     if (!file.IsOpen()) {
-        LOG_CRITICAL(Service_FS, "(unreachable) Unknown error opening {}", full_path);
+        // 不要用 LOG_CRITICAL — 之前 Android 13+ 上 /sdcard/citra-emu 路径被 MediaProvider
+        // 拒访时,这里会打 (unreachable) Unknown error opening ...,然后 cfg.cpp 跟着就
+        // ASSERT_MSG("could not open file") 把 app 整崩。改成普通 Error 日志,让调用方
+        // 走 ERROR_FILE_NOT_FOUND 分支自己处理(例如 cfg.cpp 已经改成返回错误码而不是断言)。
+        LOG_ERROR(Service_FS, "Failed to open {} ({} mode)", full_path,
+                  mode.write_flag ? "r+b" : "rb");
         return ERROR_FILE_NOT_FOUND;
     }
 

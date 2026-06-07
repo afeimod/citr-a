@@ -427,7 +427,16 @@ ResultCode Module::UpdateConfigNANDSavegame() {
     FileSys::Path path("/config");
 
     auto config_result = cfg_system_save_data_archive->OpenFile(path, mode);
-    ASSERT_MSG(config_result.Succeeded(), "could not open file");
+    if (!config_result.Succeeded()) {
+        // Android 13+ 上 MediaProvider 在没有 MANAGE_EXTERNAL_STORAGE 时会拒访
+        // /sdcard/citra-emu/nand/.../config,这里会进 ERROR_FILE_NOT_FOUND 分支。
+        // 之前直接 ASSERT_MSG 闪退,改成返回错误让上层自己处理,起码 app 不会炸;
+        // 后续一旦 /storage/emulated/0/Android/data/<pkg>/files 路径生效,
+        // 下次调 OpenFile(create_flag=1) 就能拿到一个空 config 文件并初始化为默认值。
+        LOG_ERROR(Service_CFG, "UpdateConfigNANDSavegame: failed to open {}, returning error",
+                  path.DebugStr());
+        return config_result.Code();
+    }
 
     auto config = std::move(config_result).Unwrap();
     config->Write(0, CONFIG_SAVEFILE_SIZE, 1, cfg_config_file_buffer.data());

@@ -3,6 +3,7 @@
 // Refer to the license.txt file included.
 
 #include <algorithm>
+#include <cstdlib>
 #include <iostream>
 #include <regex>
 #include <thread>
@@ -253,7 +254,26 @@ void Java_org_citra_citra_1emu_NativeLibrary_SwapScreens(JNIEnv* env, [[maybe_un
 void Java_org_citra_citra_1emu_NativeLibrary_SetUserDirectory(JNIEnv* env,
                                                               [[maybe_unused]] jclass clazz,
                                                               jstring j_directory) {
-    FileUtil::SetCurrentDir(GetJString(env, j_directory));
+    // 之前这里调用的是 FileUtil::SetCurrentDir(),只是 chdir(),根本不会改 g_paths[UserDir]。
+    // 结果就是:Java 端 DirectoryInitialization 已经把 userPath 算成了
+    //   /storage/emulated/0/Android/data/<pkg>/files  (无需权限)
+    // 但 native 这边 GetUserPath() 还是走 file_util.cpp:691 的 ANDROID 分支,默认
+    // 用 /sdcard/citra-emu/。Android 13+ 没法读这个路径,Config::LoadINI / NAND config
+    // 全炸,cfg.cpp:430 触发 ASSERT_MSG,整个 app 闪退。
+    //
+    // 这里改成 SetUserPath(),会刷新 g_paths[UserPath::UserDir] 以及所有子目录
+    // (ConfigDir / NANDDir / SDMCDir / LogDir / ...),native 后续所有 IO 都走新路径。
+    // 同时也调一下 SetCurrentDir 保留旧行为(对 chdir 敏感的代码)。
+    std::string directory = GetJString(env, j_directory);
+    if (directory.empty()) {
+        LOG_ERROR(Frontend, "SetUserDirectory called with empty path, ignoring.");
+        return;
+    }
+    // 同时把路径写到 env,这样后面 SetUserPath() 万一被 reset 走兜底分支,
+    // file_util.cpp 的 ANDROID 默认实现还能用这个 env 找回原路径,不会落到 /sdcard/。
+    setenv("CITRA_ANDROID_DATA", directory.c_str(), 1);
+    FileUtil::SetUserPath(directory);
+    FileUtil::SetCurrentDir(directory);
 }
 
 jobjectArray Java_org_citra_citra_1emu_NativeLibrary_GetInstalledGamePaths(
