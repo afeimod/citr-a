@@ -39,6 +39,12 @@ public final class SettingsActivity extends AppCompatActivity implements Setting
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        // 修 8:跟 EmulationActivity 一样,主题先换 NoActionBar。
+        // 原主题 CitraSettingsBase = Theme.AppCompat.DayNight (带 ActionBar),
+        // 配合 setDecorFitsSystemWindows(false) 之后,ActionBar 顶在 window decor 上
+        // 自己不会处理 WindowInsets,出现"工具栏被状态栏压住/叠在状态栏上"的现象。
+        setTheme(R.style.CitraSettingsBaseNoActionBar);
+
         // 跟 MainActivity 一样:状态栏透明 + sticky immersive。
         // 原本 setContentView 之前没设边到边,导致 toolbar 顶部被状态栏遮住。
         WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
@@ -64,8 +70,15 @@ public final class SettingsActivity extends AppCompatActivity implements Setting
 
         mPresenter.onCreate(savedInstanceState, menuTag, gameID);
 
+        // 修 9:用 activity_settings.xml 里的自定义 Toolbar 替代系统 ActionBar。
+        androidx.appcompat.widget.Toolbar toolbar = findViewById(R.id.toolbar_settings);
+        if (toolbar != null) {
+            setSupportActionBar(toolbar);
+        }
         // Show "Back" button in the action bar for navigation
-        getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+        if (getSupportActionBar() != null) {
+            getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+        }
     }
 
     @Override

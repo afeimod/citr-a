@@ -67,6 +67,29 @@ public final class DirectoryInitialization {
         sendBroadcastState(directoryState, context);
     }
 
+    /**
+     * HyperOS / MIUI 上面 Context.getExternalFilesDir(null) 第一次调用可能 null,
+     * 这里重试 N 次,每次 sleep 一会儿。
+     */
+    private static File tryRetry(java.util.concurrent.Callable<File> supplier, int retries, long sleepMs) {
+        File result = null;
+        for (int i = 0; i < retries; i++) {
+            try {
+                result = supplier.call();
+            } catch (Exception e) {
+                Log.error("[DirectoryInitialization] tryRetry[" + i + "] threw: " + e.getMessage());
+            }
+            if (result != null) {
+                return result;
+            }
+            try {
+                Thread.sleep(sleepMs);
+            } catch (InterruptedException ignored) {
+            }
+        }
+        return result;
+    }
+
     private static void deleteDirectoryRecursively(File file) {
         if (file.isDirectory()) {
             for (File child : file.listFiles())
@@ -106,23 +129,37 @@ public final class DirectoryInitialization {
         // 走内部存储 fallback:Context.getFilesDir() — 总是可写,只是卸载会清。
         File[] candidates = new File[]{
                 context.getExternalFilesDir(null),
+                // 修 12:HyperOS 14 / MIUI 14 上面 Context.getExternalFilesDir(null) 第一次调用
+                // 可能返回 null(存储未完全就绪),过几毫秒再调一次才返回真路径。HyperOS 还会
+                // 异步创建这个目录,中间状态是 "目录存在但 isDirectory() 返回 false"。所以
+                // 拿不到的时候重试 3 次、每次 50ms,再 fallback 到内部存储。
+                tryRetry(() -> context.getExternalFilesDir(null), 3, 50),
                 context.getFilesDir()
         };
         for (File dir : candidates) {
-            if (dir == null) continue;
+            if (dir == null) {
+                Log.error("[DirectoryInitialization] candidate dir is null, skipping");
+                continue;
+            }
             try {
                 if (!dir.exists()) {
-                    dir.mkdirs();
+                    boolean mkdirsOk = dir.mkdirs();
+                    Log.debug("[DirectoryInitialization] mkdirs(" + dir + ") = " + mkdirsOk);
                 }
                 if (dir.isDirectory() && dir.canWrite()) {
                     userPath = dir.getAbsolutePath();
                     Log.debug("[DirectoryInitialization] User Dir: " + userPath);
                     return true;
+                } else {
+                    Log.error("[DirectoryInitialization] dir " + dir
+                            + " isDirectory=" + dir.isDirectory()
+                            + " canWrite=" + dir.canWrite());
                 }
             } catch (Exception e) {
-                Log.error("[DirectoryInitialization] dir " + dir + " failed: " + e.getMessage());
+                Log.error("[DirectoryInitialization] dir " + dir + " failed: " + e.getMessage(), e);
             }
         }
+        Log.error("[DirectoryInitialization] all candidates exhausted, user dir not set");
         return false;
     }
 
