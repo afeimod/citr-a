@@ -23,6 +23,9 @@ import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.NotificationManagerCompat;
+import androidx.core.view.WindowCompat;
+import androidx.core.view.WindowInsetsCompat;
+import androidx.core.view.WindowInsetsControllerCompat;
 import androidx.fragment.app.FragmentActivity;
 
 import org.citra.citra_emu.NativeLibrary;
@@ -133,6 +136,17 @@ public final class EmulationActivity extends AppCompatActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        // 修 2:必须在 super.onCreate 之前 setTheme。
+        // 之前写在 setContentView 之前但 super.onCreate 之后,ActionBar / DecorFits 等
+        // 已经在 super.onCreate 里按默认主题 (Theme.AppCompat.DayNight) 初始化完了,
+        // 再 setTheme 改的是 layout inflation 阶段用的主题,ActionBar 已经被注入到
+        // window decor 上了,后面 enableFullscreenImmersive() 调
+        // WindowCompat.setDecorFitsSystemWindows(false) 只能让 content 画到 system
+        // bars 下面,ActionBar 那个 view 依然占着屏幕顶部一整条黄条,游戏画面顶部
+        // 被压下去 24dp+ 看起来就是"Toolbar 盖在画面上"。
+        // 这里直接用 NoActionBar 变体 + 早 setTheme 解决。
+        setTheme(R.style.CitraEmulationBaseNoActionBar);
+
         super.onCreate(savedInstanceState);
 
         if (savedInstanceState == null) {
@@ -148,22 +162,32 @@ public final class EmulationActivity extends AppCompatActivity {
 
         mControllerMappingHelper = new ControllerMappingHelper();
 
+        // 修 4:顺序调成 setContentView 之后才注册 insets listener + 调
+        // enableFullscreenImmersive。原来的顺序在 setContentView 之前拿到的是
+        // 还没填充的 decor view,WindowInsetsController 还没绑到具体内容上,后续
+        // hide(systemBars()) 的指令对 ActionBar 那个 view 无效,ActionBar 留在
+        // 顶部不消失,游戏画面顶部被压一截。
+        setContentView(R.layout.activity_emulation);
+
         // Get a handle to the Window containing the UI.
         mDecorView = getWindow().getDecorView();
-        mDecorView.setOnSystemUiVisibilityChangeListener(visibility ->
-        {
-            if ((visibility & View.SYSTEM_UI_FLAG_FULLSCREEN) == 0) {
-                // Go back to immersive fullscreen mode in 3s
-                Handler handler = new Handler(getMainLooper());
-                handler.postDelayed(this::enableFullscreenImmersive, 3000 /* 3s */);
-            }
-        });
+        // 老的 setOnSystemUiVisibilityChangeListener 在 API 30+ 还能调但 flag 不再变,
+        // 换成 WindowInsetsController 的可控事件:用户从边缘滑出 system bars 之后,
+        // 几秒后自动重新隐藏。注:WindowInsetsControllerCompat.getSystemBarsAppearance()
+        // 在 androidx.core 里没有,这里只判 typeMask 包含 systemBars() 即可。
+        WindowInsetsControllerCompat controller =
+                WindowCompat.getInsetsController(getWindow(), mDecorView);
+        if (controller != null) {
+            controller.addOnControllableInsetsChangedListener((ctrl, typeMask) -> {
+                if ((typeMask & WindowInsetsCompat.Type.systemBars()) != 0) {
+                    // 状态栏/导航栏被用户召出,几秒后重新隐藏,免得画面被遮。
+                    Handler handler = new Handler(getMainLooper());
+                    handler.postDelayed(this::enableFullscreenImmersive, 3000);
+                }
+            });
+        }
         // Set these options now so that the SurfaceView the game renders into is the right size.
         enableFullscreenImmersive();
-
-        setTheme(R.style.CitraEmulationBase);
-
-        setContentView(R.layout.activity_emulation);
 
         // Find or create the EmulationFragment
         mEmulationFragment = (EmulationFragment) getSupportFragmentManager()
@@ -176,6 +200,13 @@ public final class EmulationActivity extends AppCompatActivity {
         }
 
         setTitle(mSelectedTitle);
+
+        // 修 6:使用自定义 Toolbar (activity_emulation.xml 里那个) 作为 support action bar,
+        // 同时在 enableFullscreenImmersive() 里一起隐藏,避免之前黄条压画面的问题。
+        androidx.appcompat.widget.Toolbar toolbar = findViewById(R.id.toolbar_emulation);
+        if (toolbar != null) {
+            setSupportActionBar(toolbar);
+        }
 
         mPreferences = PreferenceManager.getDefaultSharedPreferences(this);
 
@@ -258,14 +289,31 @@ public final class EmulationActivity extends AppCompatActivity {
     }
 
     private void enableFullscreenImmersive() {
-        // It would be nice to use IMMERSIVE_STICKY, but that doesn't show the toolbar.
-        mDecorView.setSystemUiVisibility(
-                View.SYSTEM_UI_FLAG_LAYOUT_STABLE |
-                        View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION |
-                        View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN |
-                        View.SYSTEM_UI_FLAG_HIDE_NAVIGATION |
-                        View.SYSTEM_UI_FLAG_FULLSCREEN |
-                        View.SYSTEM_UI_FLAG_IMMERSIVE);
+        // Android 11 (API 30) 起 setSystemUiVisibility + SYSTEM_UI_FLAG_* 被废弃,
+        // 系统不再保证会跟着你的 flag 隐藏/恢复 system bars (Android 12+ 上这几个 flag
+        // 被系统直接忽略,游戏画面上面依然会看到状态栏 / 导航栏)。
+        // 改用 WindowInsetsControllerCompat + WindowCompat:
+        //   setDecorFitsSystemWindows(false) 让游戏画面画到 system bars 后面;
+        //   hide(systemBars()) 隐藏状态栏 + 导航栏;
+        //   BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE 是 "sticky immersive":用户从边缘
+        //   滑可以临时召出 system bars,松手几秒后自动隐藏,不打断游戏。
+        WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
+        WindowInsetsControllerCompat insetsController =
+                WindowCompat.getInsetsController(getWindow(), mDecorView);
+        if (insetsController != null) {
+            insetsController.hide(WindowInsetsCompat.Type.systemBars());
+            insetsController.setSystemBarsBehavior(
+                    WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+        }
+        // 修 7:把自定义 toolbar 一起藏起来(默认在游戏运行时不应可见,免得压在画面上)。
+        // 之前这里漏了,系统 ActionBar 还在,导致黄条一直盖在游戏画面顶部 24-48dp。
+        // toolbar 在 activity_emulation.xml 顶层,不在 fragment 的 view 里。
+        if (mDecorView != null) {
+            View toolbar = mDecorView.findViewById(R.id.toolbar_emulation);
+            if (toolbar != null) {
+                toolbar.setVisibility(View.GONE);
+            }
+        }
     }
 
     @Override

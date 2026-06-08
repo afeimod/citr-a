@@ -185,4 +185,7 @@
     <!-- Microphone -->
     <string name="microphone">Microphone</string>
     <string name="microphone_permission_needed">Citra needs to access your microphone to emulate the 3DS\'s microphone.\n\nAlternatively, you can also change \"Audio Input Device\" in Audio Settings.</string>
+
+    <!-- SAF 游戏复制提示 (Android 13+ scoped storage 下复制 cci 镜像到应用私有目录) -->
+    <string name="importing_games">Importing games, this may take a few minutes for large files…</string>
 </resources>

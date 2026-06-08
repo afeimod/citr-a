@@ -8,6 +8,7 @@ import android.database.sqlite.SQLiteOpenHelper;
 
 import org.citra.citra_emu.NativeLibrary;
 import org.citra.citra_emu.utils.Log;
+import org.citra.citra_emu.utils.SafGameImporter;
 
 import java.io.File;
 import java.lang.reflect.Array;
@@ -65,9 +66,13 @@ public final class GameDatabase extends SQLiteOpenHelper {
     private static final String SQL_DELETE_FOLDERS = "DROP TABLE IF EXISTS " + TABLE_NAME_FOLDERS;
     private static final String SQL_DELETE_GAMES = "DROP TABLE IF EXISTS " + TABLE_NAME_GAMES;
 
+    private final Context mContext;
+
     public GameDatabase(Context context) {
         // Superclass constructor builds a database or uses an existing one.
         super(context, "games.db", null, DB_VERSION);
+        // 保留 Context 引用,scanLibrary 里走 SAF 复制时需要调 getContentResolver()。
+        mContext = context;
     }
 
     @Override
@@ -151,14 +156,50 @@ public final class GameDatabase extends SQLiteOpenHelper {
         while (folderCursor.moveToNext()) {
             String folderPath = folderCursor.getString(FOLDER_COLUMN_PATH);
 
-            File folder = new File(folderPath);
-            // If the folder is empty because it no longer exists, remove it from the library.
-            if (!folder.exists()) {
-                Log.error(
-                        "[GameDatabase] Folder no longer exists. Removing from the library: " + folderPath);
-                database.delete(TABLE_NAME_FOLDERS,
-                        KEY_DB_ID + " = ?",
-                        new String[]{Long.toString(folderCursor.getLong(COLUMN_DB_ID))});
+            // Android 13+ scoped storage 下,folderPath 可能是 SAF treeUri (content://tree/...)
+            // 走 DocumentFile API 复制到应用私有目录,然后再扫应用私有目录。
+            // 如果是普通 file path,仍然走老的 java.io.File 路径。
+            File folder = null;
+            if (folderPath != null && folderPath.startsWith("content://")) {
+                // SAF treeUri:复制 + 扫应用私有目录
+                Log.info("[GameDatabase] Importing SAF tree: " + folderPath);
+                SafGameImporter.importFromSafTreeUri(
+                        mContext,
+                        folderPath,
+                        new SafGameImporter.ProgressCallback() {
+                            @Override
+                            public void onProgress(long copied, long total, String currentName) {
+                                // 不需要,仅 Debug log
+                                if (copied % 10 == 0) {
+                                    Log.info("[GameDatabase] Importing " + copied + "/" + total + ": " + currentName);
+                                }
+                            }
+
+                            @Override
+                            public void onFinished(long copied) {
+                                Log.info("[GameDatabase] SAF import finished, copied " + copied + " files");
+                            }
+
+                            @Override
+                            public void onError(String message) {
+                                Log.error("[GameDatabase] SAF import error: " + message);
+                            }
+                        });
+                folder = SafGameImporter.getAppGamesDir(mContext);
+                if (folder == null) {
+                    Log.error("[GameDatabase] Cannot get app games dir, skipping folder");
+                    continue;
+                }
+            } else {
+                folder = new File(folderPath);
+                if (!folder.exists()) {
+                    Log.error(
+                            "[GameDatabase] Folder no longer exists. Removing from the library: " + folderPath);
+                    database.delete(TABLE_NAME_FOLDERS,
+                            KEY_DB_ID + " = ?",
+                            new String[]{Long.toString(folderCursor.getLong(COLUMN_DB_ID))});
+                    continue;
+                }
             }
 
             addGamesRecursive(database, folder, allowedExtensions, 3);

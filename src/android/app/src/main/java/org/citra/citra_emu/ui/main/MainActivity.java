@@ -8,6 +8,7 @@ import android.os.Bundle;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
+import android.view.View;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
@@ -15,6 +16,9 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
+import androidx.core.view.WindowCompat;
+import androidx.core.view.WindowInsetsCompat;
+import androidx.core.view.WindowInsetsControllerCompat;
 
 import org.citra.citra_emu.NativeLibrary;
 import org.citra.citra_emu.R;
@@ -55,6 +59,31 @@ public final class MainActivity extends AppCompatActivity implements MainView {
         ThemeUtil.applyTheme();
 
         super.onCreate(savedInstanceState);
+        // Android 11 (API 30) 起,setSystemUiVisibility() 被废弃,系统不再保证会跟着
+        // 你的 flag 隐藏/恢复 system bars。改用 WindowCompat + WindowInsetsControllerCompat
+        // 是官方推荐的现代写法。重要说明:
+        //   setDecorFitsSystemWindows(false) 让内容画到 status bar / navigation bar 后面,
+        //   否则就算你在 styles.xml 里设了 transparent,decor view 还是会自动添加 padding
+        //   把内容推下去,状态栏挡的问题依然存在。
+        //   hide(systemBars()) + BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE 是 "sticky immersive"
+        //   模式:用户从边缘上滑/下滑能临时调出 system bars,几秒后自动隐藏。
+        WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
+        WindowInsetsControllerCompat insetsController =
+                WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView());
+        if (insetsController != null) {
+            insetsController.hide(WindowInsetsCompat.Type.systemBars());
+            insetsController.setSystemBarsBehavior(
+                    WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+            // 根据当前主题明/暗决定 status bar 图标颜色。
+            // 亮色背景(status bar 图标应该用黑色) vs 暗色背景(图标用白色)。
+            int nightMode = getResources().getConfiguration().uiMode
+                    & android.content.res.Configuration.UI_MODE_NIGHT_MASK;
+            insetsController.setAppearanceLightStatusBars(
+                    nightMode != android.content.res.Configuration.UI_MODE_NIGHT_YES);
+            insetsController.setAppearanceLightNavigationBars(
+                    nightMode != android.content.res.Configuration.UI_MODE_NIGHT_YES);
+        }
+
         setContentView(R.layout.activity_main);
 
         findViews();
@@ -215,8 +244,28 @@ public final class MainActivity extends AppCompatActivity implements MainView {
                     // database. This effectively means that only one game directory is supported.
                     // TODO(bunnei): Consider fixing this in the future, or removing code for this.
                     getContentResolver().insert(GameProvider.URI_RESET, null);
-                    // Add the new directory
-                    mPresenter.onDirectorySelected(FileBrowserHelper.getSelectedDirectory(result));
+                    // Android 13+ scoped storage 下,这里不能再转成 file path(转了也读不到),
+                    // 必须把 SAF treeUri 字符串本身存到 folders 表,然后 GameDatabase.scanLibrary
+                    // 检测到 content:// 开头时会调 SafGameImporter 走 DocumentFile API 读源目录,
+                    // 并把里面 .cci/.3ds 等文件复制到应用私有目录 (getExternalFilesDir(null)/games),
+                    // 之后 native Loader::GetLoader 直接读 file path,不再受 scoped storage 限制。
+                    android.net.Uri pickedTree = (result != null) ? result.getData() : null;
+                    String dirToAdd = (pickedTree != null) ? pickedTree.toString() : null;
+                    // 顺手 take persistable URI permission,后面 scanner 复制文件需要读取权限
+                    if (pickedTree != null) {
+                        try {
+                            getContentResolver().takePersistableUriPermission(
+                                    pickedTree,
+                                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                                            | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+                        } catch (SecurityException ignored) {
+                            // 老系统 (API < 19) 不支持,忽略
+                        }
+                    }
+                    mPresenter.onDirectorySelected(dirToAdd);
+                    // 提醒 user: 复制游戏可能耗时(大 cci 镜像 1-4GB),UI 上看不到进度,
+                    // 扫描完后 refresh 就会看到游戏列表。给个长 toast 告知。
+                    Toast.makeText(this, R.string.importing_games, Toast.LENGTH_LONG).show();
                 }
                 break;
                 case MainPresenter.REQUEST_INSTALL_CIA:

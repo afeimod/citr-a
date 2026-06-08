@@ -18,6 +18,17 @@
         <item name="android:windowAllowReturnTransitionOverlap">true</item>
 
         <item name="android:colorControlHighlight">?attr/colorAccent</item>
+
+        <!-- Android 5+ 起设置透明状态栏/导航栏,让内容画到 system bars 下面 -->
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <!-- Android 10 (API 29) 起:如果 status/navigation bar 透明,系统会自动加半透明
+             “scrim” 蒙层,看起来是灰色,直接挡内容。这里显式关掉,否则 MIUI 上面
+             status bar 上面会有一个半透明黑/白蒙层。-->
+        <item name="android:enforceStatusBarContrast">false</item>
+        <item name="android:enforceNavigationBarContrast">false</item>
+        <!-- Android 9 (API 28) 起允许内容画到刘海/打孔屏区域 -->
+        <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
     </style>
 
     <!-- Same as above, but use default action bar, and mandate margins. -->
@@ -25,6 +36,51 @@
         <item name="colorPrimary">@color/citra_orange</item>
         <item name="colorPrimaryDark">@color/citra_orange_dark</item>
         <item name="colorAccent">@color/citra_accent</item>
+
+        <!-- 跟 CitraBase 一样:状态栏/导航栏透明 + 关 scrim 蒙层,否则会挡 toolbar。 -->
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:enforceStatusBarContrast">false</item>
+        <item name="android:enforceNavigationBarContrast">false</item>
+        <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
+    </style>
+
+    <!--
+        修 10:SettingsActivity 之前用 CitraSettingsBase (带 ActionBar),在 setDecorFitsSystemWindows(false)
+        之后 ActionBar 不会自己让出状态栏高度,被压住 / 叠在一起。改成 NoActionBar 主题,
+        然后 activity_settings.xml 里塞 Toolbar,setSupportActionBar(toolbar) 即可。
+    -->
+    <style name="CitraSettingsBaseNoActionBar" parent="Theme.AppCompat.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/citra_orange</item>
+        <item name="colorPrimaryDark">@color/citra_orange_dark</item>
+        <item name="colorAccent">@color/citra_accent</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:enforceStatusBarContrast">false</item>
+        <item name="android:enforceNavigationBarContrast">false</item>
+        <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
+    </style>
+
+    <!--
+        修 3:EmulationActivity 之前用 CitraEmulationBase (Theme.AppCompat.DayNight,带 ActionBar)。
+        配合 enableFullscreenImmersive() 的 WindowCompat.setDecorFitsSystemWindows(false) +
+        hide(systemBars()) 时,ActionBar view 会被注入到 window decor 顶部,setDecorFitsSystemWindows(false)
+        之后 ActionBar 自己的 WindowInsets 处理不会自动让出状态栏高度,游戏画面顶部被 ActionBar
+        那个黄色 toolbar 盖住 24-48dp。改成 NoActionBar 主题,自己在 layout 里塞 Toolbar
+        (CitraEmulationBaseNoActionBar),然后在 enableFullscreenImmersive() 里一起
+        hide(toolbar) + 隐藏状态栏/导航栏,游戏画面全屏,toolbar 一起消失;反之亦然。
+    -->
+    <style name="CitraEmulationBaseNoActionBar" parent="Theme.AppCompat.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/citra_orange</item>
+        <item name="colorPrimaryDark">@color/citra_orange_dark</item>
+        <item name="colorAccent">@color/citra_accent</item>
+        <item name="android:windowTranslucentNavigation">true</item>
+        <item name="android:windowBackground">@android:color/black</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:enforceStatusBarContrast">false</item>
+        <item name="android:enforceNavigationBarContrast">false</item>
+        <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
     </style>
 
     <!-- Inherit from the Base Citra Dialog Theme -->
@@ -40,6 +96,15 @@
         <item name="android:windowContentTransitions">true</item>
         <item name="android:windowAllowEnterTransitionOverlap">true</item>
         <item name="android:windowAllowReturnTransitionOverlap">true</item>
+
+        <!-- 跟主界面一样,让 status/navigation bar 透明且系统不画 scrim 蒙层。
+             原来这个主题只设了 windowTranslucentNavigation=true(API 19 的旧 API),
+             在 API 30+ 上面 scrim 蒙层依然会加,游戏画面上面会有一层半透明灰。-->
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:enforceStatusBarContrast">false</item>
+        <item name="android:enforceNavigationBarContrast">false</item>
+        <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
     </style>
 
     <!-- Inherit from a base file picker theme that handles day/night -->

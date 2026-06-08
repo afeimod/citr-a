@@ -202,6 +202,33 @@ public final class SettingsFile {
                                 SettingsActivityView view) {
         File ini = getSettingsFile(fileName);
 
+        // 修 1:ini4j 的 Wini(File) 在文件不存在时不会自动创建,而是直接抛 FileNotFoundException。
+        // getUserDirectory() 在 Android 11+ scoped storage 下指向的是
+        // /storage/emulated/0/Android/data/<pkg>/files/,这下面的 /config 子目录由
+        // DirectoryInitialization 通过 SetUserPath() 在 native 端创建,但只是创建
+        // ConfigDir,没碰具体的 .ini。如果用户在 settings 里改了任意值、第一次触发 save,
+        // 路径 /config/config.ini 不存在,Wini 报 "FileNotFoundException: .../config.ini"
+        // 就是你截到的那个 Toast。修法:写入前先 mkdirs 父目录 + 必要时 touch 空文件。
+        File parent = ini.getParentFile();
+        if (parent != null && !parent.exists()) {
+            if (!parent.mkdirs()) {
+                Log.error("[SettingsFile] mkdirs failed: " + parent.getAbsolutePath());
+            }
+        }
+        if (!ini.exists()) {
+            try {
+                boolean created = ini.createNewFile();
+                Log.debug("[SettingsFile] createNewFile(" + ini.getAbsolutePath() + ") = " + created);
+            } catch (IOException e) {
+                Log.error("[SettingsFile] createNewFile failed: " + e.getMessage());
+                view.showToastMessage(
+                        CitraApplication.getAppContext().getString(
+                                R.string.error_saving, fileName, "cannot create " + ini.getAbsolutePath()),
+                        false);
+                return;
+            }
+        }
+
         try {
             Wini writer = new Wini(ini);
 
