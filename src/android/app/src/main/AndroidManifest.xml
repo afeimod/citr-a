@@ -20,6 +20,10 @@
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <!-- Android 14 (API 34) 起:每个 foreground service type 必须在 manifest 里同时
+         声明对应的 <uses-permission>。ForegroundService 这里用 dataSync,所以要加
+         FOREGROUND_SERVICE_DATA_SYNC,否则 startForeground 直接 SecurityException。-->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <!-- Android 13 (API 33) 起:发通知必须运行时申请这个权限,不申请发不出去,
          高版本 (Android 13/14/15) 上 createNotificationChannel 之类的能跑,
          但 tryDismissRunningNotification 之类的会被静默拒掉。-->
