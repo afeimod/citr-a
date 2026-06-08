@@ -12,6 +12,9 @@ import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.view.WindowCompat;
+import androidx.core.view.WindowInsetsCompat;
+import androidx.core.view.WindowInsetsControllerCompat;
 import androidx.fragment.app.FragmentTransaction;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
@@ -36,6 +39,21 @@ public final class SettingsActivity extends AppCompatActivity implements Setting
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        // 跟 MainActivity 一样:状态栏透明 + sticky immersive。
+        // 原本 setContentView 之前没设边到边,导致 toolbar 顶部被状态栏遮住。
+        WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
+        WindowInsetsControllerCompat insetsController =
+                WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView());
+        if (insetsController != null) {
+            insetsController.setSystemBarsBehavior(
+                    WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+            int nightMode = getResources().getConfiguration().uiMode
+                    & android.content.res.Configuration.UI_MODE_NIGHT_MASK;
+            insetsController.setAppearanceLightStatusBars(
+                    nightMode != android.content.res.Configuration.UI_MODE_NIGHT_YES);
+            insetsController.setAppearanceLightNavigationBars(
+                    nightMode != android.content.res.Configuration.UI_MODE_NIGHT_YES);
+        }
         super.onCreate(savedInstanceState);
 
         setContentView(R.layout.activity_settings);

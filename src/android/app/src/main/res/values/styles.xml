@@ -36,6 +36,13 @@
         <item name="colorPrimary">@color/citra_orange</item>
         <item name="colorPrimaryDark">@color/citra_orange_dark</item>
         <item name="colorAccent">@color/citra_accent</item>
+
+        <!-- 跟 CitraBase 一样:状态栏/导航栏透明 + 关 scrim 蒙层,否则会挡 toolbar。 -->
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:enforceStatusBarContrast">false</item>
+        <item name="android:enforceNavigationBarContrast">false</item>
+        <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
     </style>
 
     <!-- Inherit from the Base Citra Dialog Theme -->

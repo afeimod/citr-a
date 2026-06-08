@@ -244,8 +244,28 @@ public final class MainActivity extends AppCompatActivity implements MainView {
                     // database. This effectively means that only one game directory is supported.
                     // TODO(bunnei): Consider fixing this in the future, or removing code for this.
                     getContentResolver().insert(GameProvider.URI_RESET, null);
-                    // Add the new directory
-                    mPresenter.onDirectorySelected(FileBrowserHelper.getSelectedDirectory(result));
+                    // Android 13+ scoped storage 下,这里不能再转成 file path(转了也读不到),
+                    // 必须把 SAF treeUri 字符串本身存到 folders 表,然后 GameDatabase.scanLibrary
+                    // 检测到 content:// 开头时会调 SafGameImporter 走 DocumentFile API 读源目录,
+                    // 并把里面 .cci/.3ds 等文件复制到应用私有目录 (getExternalFilesDir(null)/games),
+                    // 之后 native Loader::GetLoader 直接读 file path,不再受 scoped storage 限制。
+                    android.net.Uri pickedTree = (result != null) ? result.getData() : null;
+                    String dirToAdd = (pickedTree != null) ? pickedTree.toString() : null;
+                    // 顺手 take persistable URI permission,后面 scanner 复制文件需要读取权限
+                    if (pickedTree != null) {
+                        try {
+                            getContentResolver().takePersistableUriPermission(
+                                    pickedTree,
+                                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                                            | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+                        } catch (SecurityException ignored) {
+                            // 老系统 (API < 19) 不支持,忽略
+                        }
+                    }
+                    mPresenter.onDirectorySelected(dirToAdd);
+                    // 提醒 user: 复制游戏可能耗时(大 cci 镜像 1-4GB),UI 上看不到进度,
+                    // 扫描完后 refresh 就会看到游戏列表。给个长 toast 告知。
+                    Toast.makeText(this, R.string.importing_games, Toast.LENGTH_LONG).show();
                 }
                 break;
                 case MainPresenter.REQUEST_INSTALL_CIA:

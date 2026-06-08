@@ -15,6 +15,15 @@ public class AddDirectoryHelper {
         this.mContext = context;
     }
 
+    /**
+     * 加一个目录到 game library。Android 13+ scoped storage 下,用户用 SAF picker 选中的
+     * 目录不能直接用 File.listFiles() 读,需要走 DocumentFile API。这个 helper 同时也接
+     * 受纯 file path(例如 picker 把 treeUri 转出来的路径),但为了走 SAF 复制,
+     * 这里入参的 dir 应当是 treeUri 字符串(比如 content://tree/...)。
+     *
+     * 调用前 FileBrowserHelper 应该 takePersistableUriPermission,这里再 take 一次
+     * 不会报错。
+     */
     public void addDirectory(String dir, AddDirectoryListener addDirectoryListener) {
         AsyncQueryHandler handler = new AsyncQueryHandler(mContext.getContentResolver()) {
             @Override
