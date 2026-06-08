@@ -155,16 +155,13 @@ public final class EmulationActivity extends AppCompatActivity {
         mDecorView = getWindow().getDecorView();
         // 老的 setOnSystemUiVisibilityChangeListener 在 API 30+ 还能调但 flag 不再变,
         // 换成 WindowInsetsController 的可控事件:用户从边缘滑出 system bars 之后,
-        // 几秒后自动重新隐藏。
+        // 几秒后自动重新隐藏。注:WindowInsetsControllerCompat.getSystemBarsAppearance()
+        // 在 androidx.core 里没有,这里只判 typeMask 包含 systemBars() 即可。
         WindowInsetsControllerCompat controller =
                 WindowCompat.getInsetsController(getWindow(), mDecorView);
         if (controller != null) {
             controller.addOnControllableInsetsChangedListener((ctrl, typeMask) -> {
-                if ((typeMask & WindowInsetsCompat.Type.systemBars()) != 0
-                        && (ctrl.getSystemBarsAppearance() == 0
-                                || (ctrl.getSystemBarsBehavior()
-                                        == WindowInsetsControllerCompat
-                                                .BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE))) {
+                if ((typeMask & WindowInsetsCompat.Type.systemBars()) != 0) {
                     // 状态栏/导航栏被用户召出,几秒后重新隐藏,免得画面被遮。
                     Handler handler = new Handler(getMainLooper());
                     handler.postDelayed(this::enableFullscreenImmersive, 3000);
