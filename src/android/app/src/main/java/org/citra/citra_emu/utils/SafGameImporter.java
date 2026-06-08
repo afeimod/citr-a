@@ -164,7 +164,7 @@ public final class SafGameImporter {
                 }
             }
         } catch (Exception e) {
-            Log.error(TAG, "countGamesRecursive failed: " + e.getMessage());
+            Log.error(TAG + " countGamesRecursive failed: " + e.getMessage());
         }
         return count;
     }
@@ -209,12 +209,12 @@ public final class SafGameImporter {
                     if (copyFile(context, child.getUri(), target)) {
                         copied.incrementAndGet();
                     } else {
-                        Log.error(TAG, "Failed to copy " + name);
+                        Log.error(TAG + " Failed to copy " + name);
                         success = false;
                     }
                 }
             } catch (Exception e) {
-                Log.error(TAG, "copy child failed: " + e.getMessage());
+                Log.error(TAG + " copy child failed: " + e.getMessage());
                 success = false;
             }
         }
@@ -234,7 +234,7 @@ public final class SafGameImporter {
             out.flush();
             return true;
         } catch (Exception e) {
-            Log.error(TAG, "copyFile " + source + " -> " + dest + " failed: " + e.getMessage());
+            Log.error(TAG + " copyFile " + source + " -> " + dest + " failed: " + e.getMessage());
             // 半成品删除
             if (dest.exists()) dest.delete();
             return false;
