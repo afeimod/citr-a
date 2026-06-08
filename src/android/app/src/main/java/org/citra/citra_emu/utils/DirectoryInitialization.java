@@ -156,7 +156,7 @@ public final class DirectoryInitialization {
                             + " canWrite=" + dir.canWrite());
                 }
             } catch (Exception e) {
-                Log.error("[DirectoryInitialization] dir " + dir + " failed: " + e.getMessage(), e);
+                Log.error("[DirectoryInitialization] dir " + dir + " failed: " + e.getMessage());
             }
         }
         Log.error("[DirectoryInitialization] all candidates exhausted, user dir not set");
