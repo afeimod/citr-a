@@ -23,6 +23,9 @@ import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.NotificationManagerCompat;
+import androidx.core.view.WindowCompat;
+import androidx.core.view.WindowInsetsCompat;
+import androidx.core.view.WindowInsetsControllerCompat;
 import androidx.fragment.app.FragmentActivity;
 
 import org.citra.citra_emu.NativeLibrary;
@@ -150,14 +153,24 @@ public final class EmulationActivity extends AppCompatActivity {
 
         // Get a handle to the Window containing the UI.
         mDecorView = getWindow().getDecorView();
-        mDecorView.setOnSystemUiVisibilityChangeListener(visibility ->
-        {
-            if ((visibility & View.SYSTEM_UI_FLAG_FULLSCREEN) == 0) {
-                // Go back to immersive fullscreen mode in 3s
-                Handler handler = new Handler(getMainLooper());
-                handler.postDelayed(this::enableFullscreenImmersive, 3000 /* 3s */);
-            }
-        });
+        // 老的 setOnSystemUiVisibilityChangeListener 在 API 30+ 还能调但 flag 不再变,
+        // 换成 WindowInsetsController 的可控事件:用户从边缘滑出 system bars 之后,
+        // 几秒后自动重新隐藏。
+        WindowInsetsControllerCompat controller =
+                WindowCompat.getInsetsController(getWindow(), mDecorView);
+        if (controller != null) {
+            controller.addOnControllableInsetsChangedListener((ctrl, typeMask) -> {
+                if ((typeMask & WindowInsetsCompat.Type.systemBars()) != 0
+                        && (ctrl.getSystemBarsAppearance() == 0
+                                || (ctrl.getSystemBarsBehavior()
+                                        == WindowInsetsControllerCompat
+                                                .BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE))) {
+                    // 状态栏/导航栏被用户召出,几秒后重新隐藏,免得画面被遮。
+                    Handler handler = new Handler(getMainLooper());
+                    handler.postDelayed(this::enableFullscreenImmersive, 3000);
+                }
+            });
+        }
         // Set these options now so that the SurfaceView the game renders into is the right size.
         enableFullscreenImmersive();
 
@@ -258,14 +271,22 @@ public final class EmulationActivity extends AppCompatActivity {
     }
 
     private void enableFullscreenImmersive() {
-        // It would be nice to use IMMERSIVE_STICKY, but that doesn't show the toolbar.
-        mDecorView.setSystemUiVisibility(
-                View.SYSTEM_UI_FLAG_LAYOUT_STABLE |
-                        View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION |
-                        View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN |
-                        View.SYSTEM_UI_FLAG_HIDE_NAVIGATION |
-                        View.SYSTEM_UI_FLAG_FULLSCREEN |
-                        View.SYSTEM_UI_FLAG_IMMERSIVE);
+        // Android 11 (API 30) 起 setSystemUiVisibility + SYSTEM_UI_FLAG_* 被废弃,
+        // 系统不再保证会跟着你的 flag 隐藏/恢复 system bars (Android 12+ 上这几个 flag
+        // 被系统直接忽略,游戏画面上面依然会看到状态栏 / 导航栏)。
+        // 改用 WindowInsetsControllerCompat + WindowCompat:
+        //   setDecorFitsSystemWindows(false) 让游戏画面画到 system bars 后面;
+        //   hide(systemBars()) 隐藏状态栏 + 导航栏;
+        //   BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE 是 "sticky immersive":用户从边缘
+        //   滑可以临时召出 system bars,松手几秒后自动隐藏,不打断游戏。
+        WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
+        WindowInsetsControllerCompat insetsController =
+                WindowCompat.getInsetsController(getWindow(), mDecorView);
+        if (insetsController != null) {
+            insetsController.hide(WindowInsetsCompat.Type.systemBars());
+            insetsController.setSystemBarsBehavior(
+                    WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+        }
     }
 
     @Override

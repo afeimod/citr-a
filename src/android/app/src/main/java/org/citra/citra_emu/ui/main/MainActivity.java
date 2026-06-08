@@ -8,6 +8,7 @@ import android.os.Bundle;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
+import android.view.View;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
@@ -15,6 +16,9 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
+import androidx.core.view.WindowCompat;
+import androidx.core.view.WindowInsetsCompat;
+import androidx.core.view.WindowInsetsControllerCompat;
 
 import org.citra.citra_emu.NativeLibrary;
 import org.citra.citra_emu.R;
@@ -55,6 +59,31 @@ public final class MainActivity extends AppCompatActivity implements MainView {
         ThemeUtil.applyTheme();
 
         super.onCreate(savedInstanceState);
+        // Android 11 (API 30) 起,setSystemUiVisibility() 被废弃,系统不再保证会跟着
+        // 你的 flag 隐藏/恢复 system bars。改用 WindowCompat + WindowInsetsControllerCompat
+        // 是官方推荐的现代写法。重要说明:
+        //   setDecorFitsSystemWindows(false) 让内容画到 status bar / navigation bar 后面,
+        //   否则就算你在 styles.xml 里设了 transparent,decor view 还是会自动添加 padding
+        //   把内容推下去,状态栏挡的问题依然存在。
+        //   hide(systemBars()) + BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE 是 "sticky immersive"
+        //   模式:用户从边缘上滑/下滑能临时调出 system bars,几秒后自动隐藏。
+        WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
+        WindowInsetsControllerCompat insetsController =
+                WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView());
+        if (insetsController != null) {
+            insetsController.hide(WindowInsetsCompat.Type.systemBars());
+            insetsController.setSystemBarsBehavior(
+                    WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+            // 根据当前主题明/暗决定 status bar 图标颜色。
+            // 亮色背景(status bar 图标应该用黑色) vs 暗色背景(图标用白色)。
+            int nightMode = getResources().getConfiguration().uiMode
+                    & android.content.res.Configuration.UI_MODE_NIGHT_MASK;
+            insetsController.setAppearanceLightStatusBars(
+                    nightMode != android.content.res.Configuration.UI_MODE_NIGHT_YES);
+            insetsController.setAppearanceLightNavigationBars(
+                    nightMode != android.content.res.Configuration.UI_MODE_NIGHT_YES);
+        }
+
         setContentView(R.layout.activity_main);
 
         findViews();
