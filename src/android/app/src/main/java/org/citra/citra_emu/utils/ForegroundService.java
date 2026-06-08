@@ -26,8 +26,12 @@ public class ForegroundService extends Service {
 
     private void showRunningNotification() {
         // Intent is used to resume emulation if the notification is clicked
+        // 注: Android 12 (API 31) 起 PendingIntent 必须明确指定 FLAG_IMMUTABLE 或
+        // FLAG_MUTABLE,否则直接 IllegalArgumentException。这里不需要在 RemoteViews / inline
+        // reply 场景修改 PendingIntent,选 FLAG_IMMUTABLE 最安全。
+        int piFlags = PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE;
         PendingIntent contentIntent = PendingIntent.getActivity(this, 0,
-                new Intent(this, EmulationActivity.class), PendingIntent.FLAG_UPDATE_CURRENT);
+                new Intent(this, EmulationActivity.class), piFlags);
 
         NotificationCompat.Builder builder = new NotificationCompat.Builder(this, getString(R.string.app_notification_channel_id))
                 .setSmallIcon(R.drawable.ic_stat_notification_logo)
